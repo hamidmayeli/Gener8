@@ -5,4 +5,7 @@
   <Folder Name="/src/">
     <Project Path="src/FromModel/FromModel.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FromModel.Tests/FromModel.Tests.csproj" />
+  </Folder>
 </Solution>
