@@ -1,0 +1,44 @@
+# FromModel
+
+C# source generator that copies public properties from a model class to a decorated partial DTO class.
+
+## Structure
+
+```
+FromModel.slnx
+src/FromModel/
+├── FromModel.csproj        — netstandard2.0, Roslyn packages as private assets
+└── FromModelGenerator.cs   — IIncrementalGenerator implementation
+```
+
+## How it works
+
+1. `RegisterPostInitializationOutput` injects `FromModelAttribute` into consumer projects — no separate runtime reference needed
+2. Consumers decorate a `partial class` with `[FromModel(nameof(TheModel))]`
+3. Generator resolves the named type via `Compilation.GetSymbolsWithName`, copies its public instance properties (preserving `get`/`set`/`init`), and emits a `partial class` source file
+
+## Usage
+
+```csharp
+public class TheModel { public string Name { get; set; } }
+
+[FromModel(nameof(TheModel))]
+internal partial class TheDto {}
+
+// Generator emits:
+// internal partial class TheDto { public string Name { get; set; } }
+```
+
+## Key details
+
+- Attribute full name: `FromModel.FromModelAttribute`
+- Model lookup: first type whose simple name matches — fully-qualified names not supported yet
+- Property filter: public, non-static only
+- All accessor kinds preserved: `get`, `set`, `init`
+- Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
+
+## Build
+
+```
+dotnet build src/FromModel/FromModel.csproj
+```
