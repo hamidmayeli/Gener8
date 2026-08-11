@@ -22,7 +22,7 @@ src/FromModel/
 ```csharp
 public class TheModel { public string Name { get; set; } }
 
-[FromModel(nameof(TheModel))]
+[FromModel(typeof(TheModel))]
 internal partial class TheDto {}
 
 // Generator emits:
@@ -32,7 +32,7 @@ internal partial class TheDto {}
 ## Key details
 
 - Attribute full name: `FromModel.FromModelAttribute`
-- Model lookup: first type whose simple name matches — fully-qualified names not supported yet
+- Model lookup: resolved directly from the `typeof()` argument — fully-qualified names supported
 - Property filter: public, non-static only
 - All accessor kinds preserved: `get`, `set`, `init`
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)

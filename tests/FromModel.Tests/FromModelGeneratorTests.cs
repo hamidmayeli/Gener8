@@ -8,7 +8,7 @@ public class FromModelGeneratorTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class MyModel { public string Name { get; set; } = ""; public int Age { get; set; } }
-            [FromModel(nameof(MyModel))]
+            [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
@@ -23,7 +23,7 @@ public class FromModelGeneratorTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class MyModel { public string Id { get; } = ""; }
-            [FromModel(nameof(MyModel))]
+            [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
@@ -39,7 +39,7 @@ public class FromModelGeneratorTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class MyModel { public string Name { get; init; } = ""; }
-            [FromModel(nameof(MyModel))]
+            [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
@@ -59,7 +59,7 @@ public class FromModelGeneratorTests
                 internal string Hidden { get; set; } = "";
                 private string Secret { get; set; } = "";
             }
-            [FromModel(nameof(MyModel))]
+            [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
@@ -79,7 +79,7 @@ public class FromModelGeneratorTests
                 public string Instance { get; set; } = "";
                 public static string StaticProp { get; set; } = "";
             }
-            [FromModel(nameof(MyModel))]
+            [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
@@ -96,7 +96,7 @@ public class FromModelGeneratorTests
             public class MyModel { public int Value { get; set; } }
             namespace My.App
             {
-                [FromModel(nameof(MyModel))]
+                [FromModel(typeof(MyModel))]
                 public partial class MyDto { }
             }
             """);
@@ -113,7 +113,7 @@ public class FromModelGeneratorTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class MyModel { public string Name { get; set; } = ""; }
-            [FromModel(nameof(MyModel))]
+            [FromModel(typeof(MyModel))]
             internal partial class MyDto { }
             """);
 
@@ -122,15 +122,17 @@ public class FromModelGeneratorTests
     }
 
     [Fact]
-    public void ProducesNoOutputWhenModelNotFound()
+    public void EmitsEmptyClassWhenModelHasNoProperties()
     {
         var results = GeneratorDriver.Run("""
             using FromModel;
-            [FromModel("NonExistentModel")]
+            public class MyModel { }
+            [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
-        Assert.DoesNotContain(results.Keys, k => k == "MyDto.g.cs");
+        var source = Assert.Single(results, r => r.Key == "MyDto.g.cs").Value;
+        Assert.Contains("public partial class MyDto", source);
     }
 
     [Fact]

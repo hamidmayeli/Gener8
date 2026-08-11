@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -21,11 +20,11 @@ namespace FromModel
     [System.AttributeUsage(System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
     public sealed class FromModelAttribute : System.Attribute
     {
-        public string ModelTypeName { get; }
+        public System.Type ModelType { get; }
 
-        public FromModelAttribute(string modelTypeName)
+        public FromModelAttribute(System.Type modelType)
         {
-            ModelTypeName = modelTypeName;
+            ModelType = modelType;
         }
     }
 }";
@@ -68,15 +67,9 @@ namespace FromModel
 
         if (attr is null || attr.ConstructorArguments.Length == 0) return null;
 
-        var modelTypeName = attr.ConstructorArguments[0].Value as string;
-        if (string.IsNullOrEmpty(modelTypeName)) return null;
-
-        var modelSymbol = context.SemanticModel.Compilation
-            .GetSymbolsWithName(modelTypeName!, SymbolFilter.Type)
-            .OfType<INamedTypeSymbol>()
-            .FirstOrDefault();
-
-        if (modelSymbol is null) return null;
+        var arg = attr.ConstructorArguments[0];
+        if (arg.Kind != TypedConstantKind.Type) return null;
+        if (arg.Value is not INamedTypeSymbol modelSymbol) return null;
 
         var ns = classSymbol.ContainingNamespace is { IsGlobalNamespace: false } nsSymbol
             ? nsSymbol.ToDisplayString()
