@@ -50,7 +50,7 @@ public class RenamePropertyTests
             """);
 
         var source = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
-        Assert.Contains("public string Street", source);
+        Assert.Contains("public string ShippingAddressStreet", source);
         Assert.Contains("public string Ref", source);
         Assert.DoesNotContain("Reference", source);
     }

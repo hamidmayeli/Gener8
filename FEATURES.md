@@ -47,12 +47,20 @@ internal partial class DerivedProductDto { }
 
 Instead of mapping a nested type to a corresponding DTO, copy its properties directly into the parent DTO (one level deep). `TypeMapping` still applies to the flattened properties' types. A property in both `Ignore` and `Flatten` is dropped, not flattened.
 
+An optional `FlattenPrefix` controls how the parent property name is prepended to each nested property name:
+
+| Value | Example output |
+|-------|---------------|
+| `Parent` (default) | `ShippingAddressCity` |
+| `None` | `City` |
+| `Gapped` | `ShippingAddress_City` |
+
 ```csharp
 // Order.ShippingAddress is of type Address { Street, City, PostCode }
 [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
 internal partial class OrderDto { }
 
-// Generator emits Street, City, PostCode directly on OrderDto (no AddressDto)
+// Generator emits: ShippingAddressStreet, ShippingAddressCity, ShippingAddressPostCode
 ```
 
 ---
