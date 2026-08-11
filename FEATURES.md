@@ -19,10 +19,11 @@ Alternative — attribute on the model property itself, but this couples the mod
 
 When a model property's type is itself a model that has a corresponding DTO, use the DTO type instead of the original model type in the generated output.
 
-**Proposed syntax — explicit type-mapping table:**
+**Syntax — separate repeatable `TypeMappingAttribute`:**
 
 ```csharp
-[FromModel(typeof(Order), TypeMappings = [(typeof(Address), typeof(AddressDto))])]
+[FromModel(typeof(Order))]
+[TypeMapping(typeof(Address), typeof(AddressDto))]
 internal partial class OrderDto { }
 
 [FromModel(typeof(Address))]
@@ -33,7 +34,7 @@ internal partial class AddressDto { }
 // public AddressDto BillingAddress { get; set; }
 ```
 
-Explicit mapping is preferred over automatic inference (scanning all `[FromModel]`-decorated classes in the compilation) because it is predictable and avoids hidden cross-DTO coupling. Auto-inference could be a later opt-in flag.
+Each `[TypeMapping(source, target)]` redirects one type. Multiple attributes are stacked for multiple mappings. Explicit mapping is preferred over automatic inference (scanning all `[FromModel]`-decorated classes in the compilation) because it is predictable and avoids hidden cross-DTO coupling.
 
 ---
 
