@@ -41,4 +41,21 @@ internal partial class TheDto {}
 
 ```
 dotnet build src/FromModel/FromModel.csproj
+dotnet test
 ```
+
+## NuGet packaging
+
+The generator DLL is placed under `analyzers/dotnet/cs/` in the package (not `lib/`) via `<IncludeBuildOutput>false</IncludeBuildOutput>` and a `<None>` item pointing to `$(OutputPath)$(AssemblyName).dll`. `DevelopmentDependency=true` means consumers automatically get `PrivateAssets=all` — no runtime reference.
+
+Pack locally:
+```
+dotnet pack src/FromModel/FromModel.csproj -c Release -p:Version=1.2.3
+```
+
+## CI / CD
+
+- `.github/workflows/ci.yml` — builds and tests on every push to `main` and on PRs
+- `.github/workflows/publish.yml` — manual `workflow_dispatch`; takes a `version` input, builds, tests, packs, pushes to NuGet, and creates a `v{version}` git tag
+
+Uses NuGet Trusted Publishing (OIDC) — no long-lived API key needed. Requires a `NUGET_USERNAME` secret (your nuget.org profile name) and a Trusted Publishing policy configured on nuget.org.

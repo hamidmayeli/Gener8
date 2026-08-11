@@ -1,0 +1,49 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (e.g. 1.2.3)'
+        required: true
+
+permissions:
+  contents: write  # push the git tag
+  id-token: write  # request OIDC token for NuGet Trusted Publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release -p:Version=${{ inputs.version }}
+
+      - name: Test
+        run: dotnet test --no-build -c Release
+
+      - name: Pack
+        run: dotnet pack src/FromModel/FromModel.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
+
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          # Your nuget.org profile name (NOT your email). Store in a secret.
+          user: ${{ secrets.NUGET_USERNAME }}
+
+      - name: Push to NuGet
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Tag release
+        run: |
+          git tag v${{ inputs.version }}
+          git push origin v${{ inputs.version }}
