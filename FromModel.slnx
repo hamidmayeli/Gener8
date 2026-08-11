@@ -2,6 +2,12 @@
   <Folder Name="/samples/">
     <Project Path="samples/FromModel.Sample/FromModel.Sample.csproj" />
   </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="CLAUDE.md" />
+    <File Path="FEATURES.md" />
+    <File Path="LICENSE" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/FromModel/FromModel.csproj" />
   </Folder>

@@ -21,6 +21,7 @@ namespace FromModel
     public sealed class FromModelAttribute : System.Attribute
     {
         public System.Type ModelType { get; }
+        public string[] Ignore { get; set; } = System.Array.Empty<string>();
 
         public FromModelAttribute(System.Type modelType)
         {
@@ -86,12 +87,23 @@ namespace FromModel
             _ => "internal"
         };
 
+        var ignoredNames = new HashSet<string>();
+        foreach (var namedArg in attr.NamedArguments)
+        {
+            if (namedArg.Key != "Ignore") continue;
+
+            foreach (var item in namedArg.Value.Values)
+                if (item.Value is string name)
+                    ignoredNames.Add(name);
+        }
+
         var properties = new List<PropertyData>();
         foreach (var member in modelSymbol.GetMembers())
         {
             if (member is not IPropertySymbol prop) continue;
             if (prop.DeclaredAccessibility != Accessibility.Public) continue;
             if (prop.IsStatic) continue;
+            if (ignoredNames.Contains(prop.Name)) continue;
 
             properties.Add(new PropertyData(
                 prop.Type.ToDisplayString(),
