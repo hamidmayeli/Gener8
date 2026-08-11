@@ -5,5 +5,7 @@ internal sealed record PropertyData(
     string Name,
     bool HasGetter,
     bool HasSetter,
-    bool IsInitOnly
+    bool IsInitOnly,
+    bool IsRequired,
+    string? Initializer
 );

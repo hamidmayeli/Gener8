@@ -111,15 +111,27 @@ namespace FromModel
             if (typeMappings.TryGetValue(typeDisplay, out var mapped))
                 typeDisplay = mapped;
 
-            properties.Add(new PropertyData(
+            properties.Add(new (
                 typeDisplay,
                 prop.Name,
                 prop.GetMethod is not null,
                 prop.SetMethod is not null && !prop.SetMethod.IsInitOnly,
-                prop.SetMethod is { IsInitOnly: true }));
+                prop.SetMethod is { IsInitOnly: true },
+                prop.IsRequired,
+                GetInitializer(prop)));
         }
 
         return new ClassTarget(classSymbol.Name, ns, accessibility, properties);
+    }
+
+    private static string? GetInitializer(IPropertySymbol prop)
+    {
+        if (prop.DeclaringSyntaxReferences.Length > 0
+            && prop.DeclaringSyntaxReferences[0].GetSyntax() is PropertyDeclarationSyntax propSyntax
+            && propSyntax.Initializer is not null)
+            return propSyntax.Initializer.Value.ToString();
+
+        return null;
     }
 
     private static Dictionary<string, string> GetTypeMappings(INamedTypeSymbol classSymbol)
@@ -207,7 +219,11 @@ namespace FromModel
             else if (prop.HasSetter) accessors.Append(" set;");
             accessors.Append(" }");
 
-            sb.AppendLine($"{indent}    public {prop.Type} {prop.Name}{accessors}");
+            var modifier = prop.IsRequired ? "required " : "";
+            var line = $"{indent}    public {modifier}{prop.Type} {prop.Name}{accessors}";
+            if (prop.Initializer is not null)
+                line += $" = {prop.Initializer};";
+            sb.AppendLine(line);
         }
 
         sb.AppendLine($"{indent}}}");
