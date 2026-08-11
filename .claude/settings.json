@@ -9,6 +9,12 @@
             "shell": "powershell",
             "command": "$json = $input | ConvertFrom-Json; $f = $json.tool_input.file_path; if ($f -match '\\.(cs|csproj|slnx)$') { @{hookSpecificOutput = @{hookEventName = 'PostToolUse'; additionalContext = 'Source file modified. If this was a major change (new feature, new API, architectural shift), update CLAUDE.md to reflect the current project state.'}} | ConvertTo-Json -Compress -Depth 3 }",
             "statusMessage": "Checking if CLAUDE.md needs updating..."
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$json = $input | ConvertFrom-Json; $f = $json.tool_input.file_path; if ($f -match '\\.(cs|csproj|slnx)$') { @{hookSpecificOutput = @{hookEventName = 'PostToolUse'; additionalContext = 'Source file modified. If this change adds, removes, or alters a feature or public API, review docs/ and README.md and update them accordingly.'}} | ConvertTo-Json -Compress -Depth 3 }",
+            "statusMessage": "Checking if docs/ or README.md need updating..."
           }
         ]
       }

@@ -7,6 +7,18 @@
     <File Path="CLAUDE.md" />
     <File Path="FEATURES.md" />
     <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Solution Items/GitHub Workflows/">
+    <File Path=".github/workflows/ci.yml" />
+    <File Path=".github/workflows/publish.yml" />
+  </Folder>
+  <Folder Name="/Solution Items/Documentation/">
+    <File Path="docs/attributes.md" />
+    <File Path="docs/contributing.md" />
+    <File Path="docs/features.md" />
+    <File Path="docs/getting-started.md" />
+    <File Path="docs/how-it-works.md" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/FromModel/FromModel.csproj" />
