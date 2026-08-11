@@ -1,25 +1,19 @@
 # FromModel — Feature Roadmap
 
-### 1. Ignore properties
+### ✅ 1. Ignore properties
 
 Exclude specific model properties from the generated DTO.
-
-**Proposed syntax — attribute parameter (keeps DTO concerns on the DTO side):**
 
 ```csharp
 [FromModel(typeof(Product), Ignore = [nameof(Product.InternalCode), nameof(Product.AuditTimestamp)])]
 internal partial class ProductDto { }
 ```
 
-Alternative — attribute on the model property itself, but this couples the model to DTO generation concerns and is less desirable.
-
 ---
 
-### 2. Nested complex type mapping
+### ✅ 2. Nested complex type mapping
 
 When a model property's type is itself a model that has a corresponding DTO, use the DTO type instead of the original model type in the generated output.
-
-**Syntax — separate repeatable `TypeMappingAttribute`:**
 
 ```csharp
 [FromModel(typeof(Order))]
@@ -34,13 +28,13 @@ internal partial class AddressDto { }
 // public AddressDto BillingAddress { get; set; }
 ```
 
-Each `[TypeMapping(source, target)]` redirects one type. Multiple attributes are stacked for multiple mappings. Explicit mapping is preferred over automatic inference (scanning all `[FromModel]`-decorated classes in the compilation) because it is predictable and avoids hidden cross-DTO coupling.
+Each `[TypeMapping(source, target)]` redirects one type. Multiple attributes are stacked for multiple mappings.
 
 ---
 
-### 3. Include inherited properties
+### ✅ 3. Include inherited properties
 
-By default the generator only copies properties declared directly on the model type. An opt-in flag would also walk the inheritance chain.
+By default the generator only copies properties declared directly on the model type. An opt-in flag also walks the inheritance chain. Most-derived property wins when overriding.
 
 ```csharp
 [FromModel(typeof(DerivedProduct), IncludeInherited = true)]
@@ -49,9 +43,9 @@ internal partial class DerivedProductDto { }
 
 ---
 
-### 4. Flatten a nested object
+### ✅ 4. Flatten a nested object
 
-Instead of mapping a nested type to a corresponding DTO, copy its properties directly into the parent DTO (one level deep).
+Instead of mapping a nested type to a corresponding DTO, copy its properties directly into the parent DTO (one level deep). `TypeMapping` still applies to the flattened properties' types. A property in both `Ignore` and `Flatten` is dropped, not flattened.
 
 ```csharp
 // Order.ShippingAddress is of type Address { Street, City, PostCode }
@@ -60,8 +54,6 @@ internal partial class OrderDto { }
 
 // Generator emits Street, City, PostCode directly on OrderDto (no AddressDto)
 ```
-
-Useful when the DTO represents a denormalised view (e.g., a read model or a response payload).
 
 ---
 
@@ -79,18 +71,16 @@ Name conflicts should produce a diagnostic rather than silently dropping one of 
 
 ---
 
-### 6. Rename a property
+### ✅ 6. Rename a property
 
-Map a source property to a different name in the generated DTO, covering cases where the model name is domain-internal and the DTO name is public/API-facing.
+Map a source property to a different name in the generated DTO. Implemented as a separate, repeatable attribute. Renames do not apply to properties introduced via `Flatten`.
 
 ```csharp
 [FromModel(typeof(Product))]
-[FromModelRename(nameof(Product.InternalSku), "Sku")]
-[FromModelRename(nameof(Product.DisplayName), "Name")]
+[RenameProperty(nameof(Product.InternalSku), "Sku")]
+[RenameProperty(nameof(Product.DisplayName), "Name")]
 internal partial class ProductDto { }
 ```
-
-Implemented as a separate, repeatable attribute rather than a parameter to keep the primary attribute readable.
 
 ---
 
@@ -122,13 +112,13 @@ Possible values: `Preserve` (default), `GetOnly`, `GetSet`, `GetInit`.
 
 ## Priority suggestion
 
-| # | Feature | Complexity | Value |
-|---|---------|-----------|-------|
-| 1 | Ignore properties | Low | High |
-| 2 | Nested type mapping | Medium | High |
-| 3 | Include inherited | Low | Medium |
-| 6 | Rename property | Low | Medium |
-| 7 | Force nullability | Low | Medium |
-| 8 | Override accessors | Low | Medium |
-| 4 | Flatten nested | Medium | Medium |
-| 5 | Multiple source models | Medium | Low |
+| # | Feature | Complexity | Value | Status |
+|---|---------|-----------|-------|--------|
+| 1 | Ignore properties | Low | High | ✅ Done |
+| 2 | Nested type mapping | Medium | High | ✅ Done |
+| 3 | Include inherited | Low | Medium | ✅ Done |
+| 6 | Rename property | Low | Medium | ✅ Done |
+| 7 | Force nullability | Low | Medium | |
+| 8 | Override accessors | Low | Medium | |
+| 4 | Flatten nested | Medium | Medium | ✅ Done |
+| 5 | Multiple source models | Medium | Low | |
