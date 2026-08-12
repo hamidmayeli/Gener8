@@ -2,7 +2,7 @@
 
 ## Overview
 
-`FromModel` is a Roslyn **incremental source generator** (`IIncrementalGenerator`). It participates in the compiler's incremental computation graph, meaning it only reruns the parts of its logic that are affected by a given change. For large projects this keeps rebuild times fast.
+`Gener8` is a Roslyn **incremental source generator** (`IIncrementalGenerator`). It participates in the compiler's incremental computation graph, meaning it only reruns the parts of its logic that are affected by a given change. For large projects this keeps rebuild times fast.
 
 The generator runs entirely at **compile time** — it reads the semantic model of your C# code and emits new source files that are compiled alongside your own code. There is no reflection, no runtime code generation, and no performance overhead in the deployed application.
 

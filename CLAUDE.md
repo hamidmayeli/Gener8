@@ -1,4 +1,4 @@
-# FromModel
+# Gener8
 
 C# source generator that copies public properties from a model class to a decorated partial DTO class.
 

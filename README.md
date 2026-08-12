@@ -1,14 +1,14 @@
-# FromModel
+# Gener8
 
 A C# Roslyn source generator that copies public properties from a model class into a decorated `partial` DTO class at compile time — no reflection, no runtime overhead.
 
-[![NuGet](https://img.shields.io/nuget/v/FromModel)](https://www.nuget.org/packages/FromModel)
+[![NuGet](https://img.shields.io/nuget/v/Gener8)](https://www.nuget.org/packages/Gener8)
 [![CI](https://github.com/hamidmayeli/from-model/actions/workflows/ci.yml/badge.svg)](https://github.com/hamidmayeli/from-model/actions/workflows/ci.yml)
 
 ## Installation
 
 ```
-dotnet add package FromModel
+dotnet add package Gener8
 ```
 
 The package is a development dependency — it is automatically marked `PrivateAssets=all` and adds no runtime reference to your project.

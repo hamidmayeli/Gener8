@@ -1,4 +1,4 @@
-# FromModel — Feature Roadmap
+# Gener8 — Feature Roadmap
 
 ### ✅ 1. Ignore properties
 

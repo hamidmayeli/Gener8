@@ -5,16 +5,16 @@
 Add the NuGet package to your project:
 
 ```
-dotnet add package FromModel
+dotnet add package Gener8
 ```
 
 Or edit your `.csproj` directly:
 
 ```xml
-<PackageReference Include="FromModel" Version="*" />
+<PackageReference Include="Gener8" Version="*" />
 ```
 
-Because `FromModel` is a source generator, the package is automatically treated as a development dependency (`PrivateAssets="all"`). It adds no runtime assembly reference — consumers only see the generated source.
+Because `Gener8` is a source generator, the package is automatically treated as a development dependency (`PrivateAssets="all"`). It adds no runtime assembly reference — consumers only see the generated source.
 
 ## Requirements
 

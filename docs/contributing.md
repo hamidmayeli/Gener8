@@ -99,7 +99,7 @@ dotnet pack src/FromModel/FromModel.csproj -c Release -p:Version=1.2.3
 Output goes to `src/FromModel/bin/Release/` by default. Test installing locally:
 
 ```
-dotnet add package FromModel --source ./src/FromModel/bin/Release/
+dotnet add package Gener8 --source ./src/FromModel/bin/Release/
 ```
 
 ## CI/CD

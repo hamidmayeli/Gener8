@@ -8,7 +8,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <!-- NuGet metadata -->
-    <PackageId>FromModel</PackageId>
+    <PackageId>Gener8</PackageId>
     <Version>0.0.1</Version>
     <Authors>Hamid Mayeli</Authors>
     <Description>C# source generator that copies public properties from a model class to a decorated partial DTO class.</Description>
