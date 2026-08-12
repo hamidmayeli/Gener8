@@ -55,6 +55,7 @@ internal static class SyntaxTransformer
             {
                 if (prop.Type is INamedTypeSymbol nestedType)
                 {
+                    var parentIsNullable = prop.NullableAnnotation == NullableAnnotation.Annotated;
                     foreach (var nested in GetModelProperties(nestedType, includeInherited: false))
                     {
                         var nestedName = flattenPrefix switch
@@ -63,7 +64,7 @@ internal static class SyntaxTransformer
                             FlattenPrefixMode.Gaped => prop.Name + "_" + nested.Name,
                             _ => null
                         };
-                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName));
+                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable));
                     }
                 }
                 continue;
@@ -111,11 +112,15 @@ internal static class SyntaxTransformer
         IPropertySymbol prop,
         Dictionary<string, string> typeMappings,
         Dictionary<string, string>? renameMap,
-        string? nameOverride = null)
+        string? nameOverride = null,
+        bool parentIsNullable = false)
     {
         var typeDisplay = prop.Type.ToDisplayString();
         if (typeMappings.TryGetValue(typeDisplay, out var mapped))
             typeDisplay = mapped;
+
+        if (parentIsNullable && !typeDisplay.EndsWith("?"))
+            typeDisplay += "?";
 
         var name = nameOverride
             ?? (renameMap is not null && renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name);
@@ -125,7 +130,7 @@ internal static class SyntaxTransformer
             prop.GetMethod is not null,
             prop.SetMethod is not null && !prop.SetMethod.IsInitOnly,
             prop.SetMethod is { IsInitOnly: true },
-            prop.IsRequired,
+            prop.IsRequired && !parentIsNullable,
             GetInitializer(prop));
     }
 

@@ -149,4 +149,22 @@ public class FlattenTests
 
         Assert.Contains("FlattenPrefix.g.cs", results.Keys);
     }
+
+    [Fact]
+    public void FlattenNullableType_OverriedsRequiredModifier()
+    {
+        var results = GeneratorDriver.Run("""
+            using FromModel;
+            public class Address { public required string City { get; set; } = ""; }
+            public class Order { public Address? ShippingAddress { get; set; } }
+            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.None)]
+            public partial class OrderDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
+
+        Assert.DoesNotContain("public required string City", source);
+        Assert.DoesNotContain("ShippingAddress", source);
+        Assert.Contains("public string? City", source);
+    }
 }
