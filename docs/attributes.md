@@ -39,7 +39,7 @@ public FromModelAttribute(Type modelType)
     Ignore           = [nameof(Order.InternalNotes)],
     IncludeInherited = true,
     Flatten          = [nameof(Order.BillingAddress)],
-    FlattenPrefix    = FlattenPrefix.Gapped)]
+    FlattenPrefix    = FlattenPrefix.Gaped)]
 internal partial class OrderDto { }
 ```
 
@@ -115,7 +115,7 @@ Controls how the parent property name is prepended when a property is flattened.
 |---|---|---|
 | `Parent` | `0` (default) | `ShippingAddressCity` |
 | `None` | `1` | `City` |
-| `Gapped` | `2` | `ShippingAddress_City` |
+| `Gaped` | `2` | `ShippingAddress_City` |
 
 ### Example
 

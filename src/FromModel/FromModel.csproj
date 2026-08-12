@@ -17,6 +17,7 @@
     <RepositoryUrl>https://github.com/hamidmayeli/from-model</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <!-- Source generators must live under analyzers/dotnet/cs/, not lib/ -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
@@ -37,6 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="README.md" />
     <!-- Place the generator DLL in the correct analyzer slot inside the .nupkg -->
     <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>

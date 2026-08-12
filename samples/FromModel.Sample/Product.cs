@@ -8,3 +8,6 @@ public class Product
     public bool InStock { get; set; }
     public decimal Discount { get; set; }
 }
+
+[FromModel(typeof(Product))]
+internal partial class ProductDto { }

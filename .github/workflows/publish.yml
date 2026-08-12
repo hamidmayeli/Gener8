@@ -15,6 +15,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      - name: Skip if not main branch
+        if: github.ref != 'refs/heads/main'
+        run: echo "Not on main branch, skipping publish."
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-dotnet@v4

@@ -145,10 +145,10 @@ Control how the parent property name is prepended to each nested property name:
 |---|---|---|
 | `FlattenPrefix.Parent` (default) | `ShippingAddressCity` | PascalCase concatenation |
 | `FlattenPrefix.None` | `City` | No prefix; beware of name collisions |
-| `FlattenPrefix.Gapped` | `ShippingAddress_City` | Underscore separator |
+| `FlattenPrefix.Gaped` | `ShippingAddress_City` | Underscore separator |
 
 ```csharp
-[FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.Gapped)]
+[FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.Gaped)]
 internal partial class OrderDto { }
 // Emits: ShippingAddress_Street, ShippingAddress_City, ShippingAddress_PostCode
 ```

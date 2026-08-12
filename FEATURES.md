@@ -53,7 +53,7 @@ An optional `FlattenPrefix` controls how the parent property name is prepended t
 |-------|---------------|
 | `Parent` (default) | `ShippingAddressCity` |
 | `None` | `City` |
-| `Gapped` | `ShippingAddress_City` |
+| `Gaped` | `ShippingAddress_City` |
 
 ```csharp
 // Order.ShippingAddress is of type Address { Street, City, PostCode }

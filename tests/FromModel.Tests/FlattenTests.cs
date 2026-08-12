@@ -109,13 +109,13 @@ public class FlattenTests
     }
 
     [Fact]
-    public void FlattenPrefix_GappedPrependsPropertyNameWithUnderscore()
+    public void FlattenPrefix_GapedPrependsPropertyNameWithUnderscore()
     {
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class Address { public string Street { get; set; } = ""; public string City { get; set; } = ""; }
             public class Order { public Address ShippingAddress { get; set; } = new(); }
-            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.Gapped)]
+            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.Gaped)]
             public partial class OrderDto { }
             """);
 
