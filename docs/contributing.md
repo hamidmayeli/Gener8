@@ -14,6 +14,7 @@ FromModel.slnx
 │   ├── FromModelGenerator.cs   — IIncrementalGenerator implementation
 │   ├── ClassTarget.cs          — internal record: class metadata for emit
 │   ├── PropertyData.cs         — internal record: per-property emit data
+│   ├── RepositoryKind.cs       — internal enum: None / DynamoDb / MongoDb
 │   └── IsExternalInit.cs       — polyfill for init-only setters on netstandard2.0
 ├── tests/Gener8.Tests/         — xUnit test suite (net10.0)
 │   ├── Gener8.Tests.csproj

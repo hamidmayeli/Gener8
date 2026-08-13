@@ -76,7 +76,9 @@ internal static class SyntaxTransformer
             properties.Add(BuildPropertyData(prop, typeMappings, renameMap));
         }
 
-        return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName);
+        var repositoryKind = GetRepositoryKind(attr);
+
+        return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName, repositoryKind);
     }
 
     private static Dictionary<string, string> GetTypeMappings(INamedTypeSymbol classSymbol)
@@ -195,6 +197,14 @@ internal static class SyntaxTransformer
             if (namedArg.Key == "FlattenPrefix" && namedArg.Value.Value is int val)
                 return (FlattenPrefixMode)val;
         return FlattenPrefixMode.Parent;
+    }
+
+    private static RepositoryKind GetRepositoryKind(AttributeData attr)
+    {
+        foreach (var namedArg in attr.NamedArguments)
+            if (namedArg.Key == "Repository" && namedArg.Value.Value is int val)
+                return (RepositoryKind)val;
+        return RepositoryKind.None;
     }
 
     private static Dictionary<string, string> GetRenameMap(INamedTypeSymbol classSymbol)

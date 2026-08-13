@@ -57,6 +57,7 @@ All accessor kinds (`get`, `set`, `init`), the `required` modifier, and property
 | Inline (flatten) a nested object | `Flatten = [nameof(Model.Prop)]` |
 | Rename a property in the output | `[RenameProperty("OldName", "NewName")]` |
 | Mapping extension methods | Generated automatically alongside every DTO |
+| Generate a repository scaffold | `Repository = RepositoryType.DynamoDb` or `RepositoryType.MongoDb` |
 
 See [doc/features.md](doc/features.md) for detailed examples of every feature.
 
@@ -122,6 +123,33 @@ Product    model = dto.ToModel();
 ```
 
 Type-mapped properties generate chained calls — `dto.ShippingAddress.ToModel()` and `model.ShippingAddress.ToDto()`.
+
+### Repository scaffold
+
+Set `Repository` to generate a concrete repository class that inherits from the injected `Gener8.Repository<T>` abstract base:
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoDynamoDbRepository.g.cs:
+// internal class ProductDtoDynamoDbRepository : global::Gener8.Repository<ProductDto>
+// {
+//     private readonly global::Amazon.DynamoDBv2.IAmazonDynamoDB _client;
+//     private readonly global::Gener8.DynamoDbRepositorySettings _settings;
+//
+//     public ProductDtoDynamoDbRepository(IAmazonDynamoDB client, DynamoDbRepositorySettings settings) { ... }
+//
+//     public override Task<ProductDto?> GetByIdAsync(string id, CancellationToken ct = default) => ...;
+//     public override Task<IEnumerable<ProductDto>> GetAllAsync(CancellationToken ct = default) => ...;
+//     public override Task SaveAsync(ProductDto entity, CancellationToken ct = default) => ...;
+//     public override Task DeleteAsync(string id, CancellationToken ct = default) => ...;
+// }
+```
+
+Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoClient` and `MongoDbRepositorySettings` (holding `DatabaseName` and `CollectionName`) and exposes the collection as `_collection`.
+
+The four override stubs throw `NotImplementedException`; fill them in with your data-access logic. The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project.
 
 ## Documentation
 

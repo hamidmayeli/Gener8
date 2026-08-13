@@ -30,6 +30,7 @@ public FromModelAttribute(Type modelType)
 | `IncludeInherited` | `bool` | `false` | When `true`, properties from base classes are also copied. Most-derived property wins when a name is overridden. |
 | `Flatten` | `string[]` | `[]` | Property names whose types will be inlined (one level deep) into the DTO instead of being mapped as a whole. |
 | `FlattenPrefix` | `FlattenPrefix` | `FlattenPrefix.Parent` | Controls how the parent property name is prepended to flattened property names. |
+| `Repository` | `RepositoryType` | `RepositoryType.None` | When set to `DynamoDb` or `MongoDb`, generates a concrete repository scaffold for the DTO. |
 
 ### Example
 
@@ -39,7 +40,8 @@ public FromModelAttribute(Type modelType)
     Ignore           = [nameof(Order.InternalNotes)],
     IncludeInherited = true,
     Flatten          = [nameof(Order.BillingAddress)],
-    FlattenPrefix    = FlattenPrefix.Gaped)]
+    FlattenPrefix    = FlattenPrefix.Gaped,
+    Repository       = RepositoryType.DynamoDb)]
 internal partial class OrderDto { }
 ```
 
@@ -123,6 +125,66 @@ Controls how the parent property name is prepended when a property is flattened.
 [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.None)]
 internal partial class OrderDto { }
 ```
+
+---
+
+## `RepositoryType` enum
+
+**Full name:** `Gener8.RepositoryType`
+
+Used with the `Repository` property of `[FromModel]` to opt into repository scaffold generation.
+
+| Member | Value | Description |
+|---|---|---|
+| `None` | `0` (default) | No repository is generated. |
+| `DynamoDb` | `1` | Generates a repository backed by `IAmazonDynamoDB`. Requires `AWSSDK.DynamoDBv2`. |
+| `MongoDb` | `2` | Generates a repository backed by `IMongoClient`. Requires `MongoDB.Driver`. |
+
+See [features.md — Repository scaffold](features.md#7-repository-scaffold) for full examples.
+
+---
+
+## `Gener8.Repository<T>` abstract base class
+
+**Full name:** `Gener8.Repository<T>`  
+**Constraint:** `T : class`
+
+Injected into every consumer project. All generated repository classes inherit from it. Defines the contract:
+
+```csharp
+public abstract class Repository<T> where T : class
+{
+    public abstract Task<T?>               GetByIdAsync(string id, CancellationToken cancellationToken = default);
+    public abstract Task<IEnumerable<T>>   GetAllAsync(CancellationToken cancellationToken = default);
+    public abstract Task                   SaveAsync(T entity, CancellationToken cancellationToken = default);
+    public abstract Task                   DeleteAsync(string id, CancellationToken cancellationToken = default);
+}
+```
+
+---
+
+## `DynamoDbRepositorySettings`
+
+**Full name:** `Gener8.DynamoDbRepositorySettings`
+
+Settings class injected into every consumer project. Passed to the generated DynamoDB repository constructor.
+
+| Property | Type | Description |
+|---|---|---|
+| `TableName` | `string` | The DynamoDB table name to operate on. |
+
+---
+
+## `MongoDbRepositorySettings`
+
+**Full name:** `Gener8.MongoDbRepositorySettings`
+
+Settings class injected into every consumer project. Passed to the generated MongoDB repository constructor.
+
+| Property | Type | Description |
+|---|---|---|
+| `DatabaseName` | `string` | The MongoDB database name. |
+| `CollectionName` | `string` | The MongoDB collection name. |
 
 ---
 

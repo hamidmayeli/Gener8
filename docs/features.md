@@ -249,6 +249,96 @@ The companion `OrderResponseDtoExtensions` class is generated automatically alon
 
 ---
 
+## 7. Repository scaffold
+
+Set `Repository = RepositoryType.DynamoDb` or `Repository = RepositoryType.MongoDb` on `[FromModel]` to have the generator emit a ready-to-fill repository class alongside the DTO. The generated class inherits from the injected `Gener8.Repository<T>` abstract base.
+
+### DynamoDB
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+internal partial class ProductDto { }
+```
+
+Generated `ProductDtoDynamoDbRepository.g.cs`:
+
+```csharp
+internal class ProductDtoDynamoDbRepository : global::Gener8.Repository<ProductDto>
+{
+    private readonly global::Amazon.DynamoDBv2.IAmazonDynamoDB _client;
+    private readonly global::Gener8.DynamoDbRepositorySettings _settings;
+
+    public ProductDtoDynamoDbRepository(
+        global::Amazon.DynamoDBv2.IAmazonDynamoDB client,
+        global::Gener8.DynamoDbRepositorySettings settings)
+    {
+        _client = client;
+        _settings = settings;
+    }
+
+    public override global::System.Threading.Tasks.Task<ProductDto?> GetByIdAsync(string id, global::System.Threading.CancellationToken cancellationToken = default)
+        => throw new global::System.NotImplementedException();
+
+    public override global::System.Threading.Tasks.Task<global::System.Collections.Generic.IEnumerable<ProductDto>> GetAllAsync(global::System.Threading.CancellationToken cancellationToken = default)
+        => throw new global::System.NotImplementedException();
+
+    public override global::System.Threading.Tasks.Task SaveAsync(ProductDto entity, global::System.Threading.CancellationToken cancellationToken = default)
+        => throw new global::System.NotImplementedException();
+
+    public override global::System.Threading.Tasks.Task DeleteAsync(string id, global::System.Threading.CancellationToken cancellationToken = default)
+        => throw new global::System.NotImplementedException();
+}
+```
+
+The repository receives `DynamoDbRepositorySettings` (holding `TableName`) and the `IAmazonDynamoDB` client as constructor arguments. Implement the stubs using `_client` and `_settings.TableName`.
+
+Requires the `AWSSDK.DynamoDBv2` NuGet package.
+
+### MongoDB
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
+internal partial class ProductDto { }
+```
+
+Generated `ProductDtoMongoDbRepository.g.cs`:
+
+```csharp
+internal class ProductDtoMongoDbRepository : global::Gener8.Repository<ProductDto>
+{
+    private readonly global::MongoDB.Driver.IMongoCollection<ProductDto> _collection;
+
+    public ProductDtoMongoDbRepository(
+        global::MongoDB.Driver.IMongoClient client,
+        global::Gener8.MongoDbRepositorySettings settings)
+    {
+        _collection = client.GetDatabase(settings.DatabaseName).GetCollection<ProductDto>(settings.CollectionName);
+    }
+
+    public override global::System.Threading.Tasks.Task<ProductDto?> GetByIdAsync(string id, global::System.Threading.CancellationToken cancellationToken = default)
+        => throw new global::System.NotImplementedException();
+
+    // ... (same four stubs)
+}
+```
+
+The constructor resolves `_collection` from the client, database name, and collection name automatically. Implement the stubs using `_collection`.
+
+Requires the `MongoDB.Driver` NuGet package.
+
+### `Gener8.Repository<T>` abstract base
+
+The abstract base is always injected into consumer projects (alongside the attribute types). It defines the four-method CRUD contract:
+
+| Method | Signature |
+|---|---|
+| `GetByIdAsync` | `Task<T?> GetByIdAsync(string id, CancellationToken ct = default)` |
+| `GetAllAsync` | `Task<IEnumerable<T>> GetAllAsync(CancellationToken ct = default)` |
+| `SaveAsync` | `Task SaveAsync(T entity, CancellationToken ct = default)` |
+| `DeleteAsync` | `Task DeleteAsync(string id, CancellationToken ct = default)` |
+
+---
+
 ## Planned features
 
 The following features are on the roadmap but not yet implemented:

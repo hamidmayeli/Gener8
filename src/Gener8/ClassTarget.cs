@@ -7,5 +7,6 @@ internal sealed record ClassTarget(
     string? Namespace,
     string Accessibility,
     IReadOnlyCollection<PropertyData> Properties,
-    string ModelFullName   // global::-prefixed fully qualified model type name
+    string ModelFullName,   // global::-prefixed fully qualified model type name
+    RepositoryKind Repository
     );

@@ -112,7 +112,33 @@ internal partial class ProductDto { }
 
 ---
 
-### 8. Force nullability
+### ✅ 8. Repository scaffold
+
+Opt into generating a concrete repository class that inherits from the injected `Gener8.Repository<T>` abstract base. Set `Repository = RepositoryType.DynamoDb` or `Repository = RepositoryType.MongoDb` on `[FromModel]`.
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoDynamoDbRepository : Gener8.Repository<ProductDto>
+// with constructor (IAmazonDynamoDB client, DynamoDbRepositorySettings settings)
+// and four method stubs (GetByIdAsync, GetAllAsync, SaveAsync, DeleteAsync).
+```
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoMongoDbRepository : Gener8.Repository<ProductDto>
+// with constructor (IMongoClient client, MongoDbRepositorySettings settings)
+// that resolves IMongoCollection<ProductDto> automatically.
+```
+
+Requires `AWSSDK.DynamoDBv2` or `MongoDB.Driver` in the consuming project depending on the chosen type.
+
+---
+
+### 10. Force nullability
 
 Override accessor nullability for all copied properties — useful when building DTOs that represent optional/partial payloads (e.g., PATCH request bodies).
 
@@ -125,7 +151,7 @@ internal partial class ProductPatchDto { }
 
 ---
 
-### 9. Override accessors
+### 11. Override accessors
 
 Emit properties with a different accessor pattern than the source — for instance, force all properties to `init`-only in an immutable response DTO.
 
@@ -149,5 +175,6 @@ Possible values: `Preserve` (default), `GetOnly`, `GetSet`, `GetInit`.
 | 5 | Multiple source models | Medium | Low | |
 | 6 | Rename property | Low | Medium | ✅ Done |
 | 7 | Mapping extension methods | Medium | High | ✅ Done |
-| 8 | Force nullability | Low | Medium | |
-| 9 | Override accessors | Low | Medium | |
+| 8 | Repository scaffold | Medium | High | ✅ Done |
+| 9 | Force nullability | Low | Medium | |
+| 10 | Override accessors | Low | Medium | |
