@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace FromModel;
+namespace Gener8;
 
 internal sealed record ClassTarget(
     string ClassName,

@@ -1,4 +1,4 @@
-﻿namespace FromModel.Tests;
+﻿namespace Gener8.Tests;
 
 public class IgnorePropertiesTests
 {
@@ -6,7 +6,7 @@ public class IgnorePropertiesTests
     public void IgnoreExcludesNamedProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel
             {
                 public string Name { get; set; } = "";
@@ -27,7 +27,7 @@ public class IgnorePropertiesTests
     public void IgnoreExcludesMultipleNamedProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel
             {
                 public string Name { get; set; } = "";
@@ -50,7 +50,7 @@ public class IgnorePropertiesTests
     public void EmptyIgnoreIncludesAllProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; set; } = ""; public int Age { get; set; } }
             [FromModel(typeof(MyModel), Ignore = [])]
             public partial class MyDto { }
@@ -65,7 +65,7 @@ public class IgnorePropertiesTests
     public void DefaultIgnoreIncludesAllProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; set; } = ""; public int Age { get; set; } }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }

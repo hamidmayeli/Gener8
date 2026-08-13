@@ -136,7 +136,7 @@ Type-mapped properties generate chained calls — `dto.ShippingAddress.ToModel()
 ## Building from source
 
 ```
-dotnet build src/FromModel/FromModel.csproj
+dotnet build src/Gener8/Gener8.csproj
 dotnet test
 ```
 

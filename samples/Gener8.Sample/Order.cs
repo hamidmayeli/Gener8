@@ -1,4 +1,4 @@
-﻿namespace FromModel.Sample;
+﻿namespace Gener8.Sample;
 
 public class Order
 {

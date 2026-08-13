@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\FromModel\FromModel.csproj" />
+    <ProjectReference Include="..\..\src\Gener8\Gener8.csproj" />
   </ItemGroup>
 
   <ItemGroup>

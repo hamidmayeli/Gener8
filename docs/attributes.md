@@ -6,7 +6,7 @@ All attributes are injected by the generator into every consuming project at bui
 
 ## `[FromModel]`
 
-**Full name:** `FromModel.FromModelAttribute`  
+**Full name:** `Gener8.FromModelAttribute`  
 **Target:** `class`  
 **AllowMultiple:** `false`
 
@@ -47,7 +47,7 @@ internal partial class OrderDto { }
 
 ## `[TypeMapping]`
 
-**Full name:** `FromModel.TypeMappingAttribute`  
+**Full name:** `Gener8.TypeMappingAttribute`  
 **Target:** `class`  
 **AllowMultiple:** `true`
 
@@ -77,7 +77,7 @@ internal partial class OrderDto { }
 
 ## `[RenameProperty]`
 
-**Full name:** `FromModel.RenamePropertyAttribute`  
+**Full name:** `Gener8.RenamePropertyAttribute`  
 **Target:** `class`  
 **AllowMultiple:** `true`
 
@@ -107,7 +107,7 @@ internal partial class ProductDto { }
 
 ## `FlattenPrefix` enum
 
-**Full name:** `FromModel.FlattenPrefix`
+**Full name:** `Gener8.FlattenPrefix`
 
 Controls how the parent property name is prepended when a property is flattened.
 

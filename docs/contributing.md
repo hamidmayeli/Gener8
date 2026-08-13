@@ -9,24 +9,25 @@
 
 ```
 FromModel.slnx
-├── src/FromModel/              — the generator (netstandard2.0)
-│   ├── FromModel.csproj
+├── src/Gener8/                 — the generator (netstandard2.0)
+│   ├── Gener8.csproj
 │   ├── FromModelGenerator.cs   — IIncrementalGenerator implementation
 │   ├── ClassTarget.cs          — internal record: class metadata for emit
 │   ├── PropertyData.cs         — internal record: per-property emit data
 │   └── IsExternalInit.cs       — polyfill for init-only setters on netstandard2.0
-├── tests/FromModel.Tests/      — xUnit test suite (net10.0)
-│   ├── FromModel.Tests.csproj
+├── tests/Gener8.Tests/         — xUnit test suite (net10.0)
+│   ├── Gener8.Tests.csproj
 │   ├── GeneratorDriver.cs      — shared test helper: runs the generator in-memory
 │   ├── FromModelGeneratorTests.cs
 │   ├── FlattenTests.cs
 │   ├── IgnorePropertiesTests.cs
 │   ├── IncludeInheritedTests.cs
+│   ├── MappingExtensionsTests.cs
 │   ├── PropertyModifierTests.cs
 │   ├── RenamePropertyTests.cs
 │   └── TypeMappingTests.cs
-└── samples/FromModel.Sample/   — console app that exercises the generator end-to-end
-    ├── FromModel.Sample.csproj
+└── samples/Gener8.Sample/      — console app that exercises the generator end-to-end
+    ├── Gener8.Sample.csproj
     ├── Product.cs
     └── Program.cs
 ```
@@ -34,7 +35,7 @@ FromModel.slnx
 ## Build
 
 ```
-dotnet build src/FromModel/FromModel.csproj
+dotnet build src/Gener8/Gener8.csproj
 ```
 
 Build the entire solution (generator + tests + sample):
@@ -57,7 +58,7 @@ dotnet test --filter "FullyQualifiedName~FlattenTests"
 
 ### Writing tests
 
-All tests use the shared `GeneratorDriver` helper in `tests/FromModel.Tests/GeneratorDriver.cs`. It:
+All tests use the shared `GeneratorDriver` helper in `tests/Gener8.Tests/GeneratorDriver.cs`. It:
 
 1. Creates a minimal in-memory `CSharpCompilation` with `mscorlib` and `System.Runtime` references.
 2. Runs `CSharpGeneratorDriver.Create(new FromModelGenerator()).RunGeneratorsAndUpdateCompilation(...)`.
@@ -74,7 +75,7 @@ public void CopiesPublicProperty()
     {
         ["Model.cs"] = "public class MyModel { public string Name { get; set; } }",
         ["Dto.cs"]   = """
-            using FromModel;
+            using Gener8;
             [FromModel(typeof(MyModel))]
             internal partial class MyDto { }
             """,
@@ -93,13 +94,13 @@ The project is configured as an **analyzer** package — the generator DLL is pl
 Pack a local `.nupkg`:
 
 ```
-dotnet pack src/FromModel/FromModel.csproj -c Release -p:Version=1.2.3
+dotnet pack src/Gener8/Gener8.csproj -c Release -p:Version=1.2.3
 ```
 
-Output goes to `src/FromModel/bin/Release/` by default. Test installing locally:
+Output goes to `src/Gener8/bin/Release/` by default. Test installing locally:
 
 ```
-dotnet add package Gener8 --source ./src/FromModel/bin/Release/
+dotnet add package Gener8 --source ./src/Gener8/bin/Release/
 ```
 
 ## CI/CD

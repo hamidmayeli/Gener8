@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
-namespace FromModel;
+namespace Gener8;
 
 internal static class SyntaxTransformer
 {

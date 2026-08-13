@@ -1,4 +1,4 @@
-namespace FromModel;
+namespace Gener8;
 
 internal sealed record PropertyData(
     string Type,

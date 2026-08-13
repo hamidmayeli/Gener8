@@ -1,4 +1,4 @@
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 public class FromModelGeneratorTests
 {
@@ -6,7 +6,7 @@ public class FromModelGeneratorTests
     public void CopiesPublicGetSetProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; set; } = ""; public int Age { get; set; } }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -21,7 +21,7 @@ public class FromModelGeneratorTests
     public void PreservesGetOnlyProperty()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Id { get; } = ""; }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -37,7 +37,7 @@ public class FromModelGeneratorTests
     public void PreservesInitOnlyProperty()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; init; } = ""; }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -52,7 +52,7 @@ public class FromModelGeneratorTests
     public void ExcludesNonPublicProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel
             {
                 public string Visible { get; set; } = "";
@@ -73,7 +73,7 @@ public class FromModelGeneratorTests
     public void ExcludesStaticProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel
             {
                 public string Instance { get; set; } = "";
@@ -92,7 +92,7 @@ public class FromModelGeneratorTests
     public void EmitsNamespaceWhenDtoIsNamespaced()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public int Value { get; set; } }
             namespace My.App
             {
@@ -111,7 +111,7 @@ public class FromModelGeneratorTests
     public void PreservesInternalAccessibility()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; set; } = ""; }
             [FromModel(typeof(MyModel))]
             internal partial class MyDto { }
@@ -125,7 +125,7 @@ public class FromModelGeneratorTests
     public void EmitsEmptyClassWhenModelHasNoProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }

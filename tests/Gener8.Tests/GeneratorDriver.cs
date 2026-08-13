@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Reflection;
 
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 internal static class GeneratorDriver
 {

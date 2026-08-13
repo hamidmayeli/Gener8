@@ -2,7 +2,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace FromModel;
+namespace Gener8;
 
 [Generator]
 public sealed partial class FromModelGenerator : IIncrementalGenerator

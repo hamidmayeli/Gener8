@@ -1,4 +1,4 @@
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 public class PropertyModifierTests
 {
@@ -6,7 +6,7 @@ public class PropertyModifierTests
     public void PreservesRequiredModifier()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public required string Name { get; set; } }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -20,7 +20,7 @@ public class PropertyModifierTests
     public void NonRequiredPropertyHasNoRequiredModifier()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; set; } = ""; }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -34,7 +34,7 @@ public class PropertyModifierTests
     public void PreservesStringEmptyInitializer()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public string Name { get; set; } = string.Empty; }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -48,7 +48,7 @@ public class PropertyModifierTests
     public void PreservesLiteralInitializer()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public int Count { get; set; } = 42; }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
@@ -62,7 +62,7 @@ public class PropertyModifierTests
     public void PropertiesWithoutInitializerHaveNoAssignment()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class MyModel { public int Count { get; set; } }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }

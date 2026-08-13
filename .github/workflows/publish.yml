@@ -35,7 +35,7 @@ jobs:
         run: dotnet test --no-build -c Release
 
       - name: Pack
-        run: dotnet pack src/FromModel/FromModel.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
+        run: dotnet pack src/Gener8/Gener8.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
 
       - name: NuGet login (OIDC → temp API key)
         uses: NuGet/login@v1

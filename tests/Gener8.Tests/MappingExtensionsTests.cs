@@ -1,4 +1,4 @@
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 public class MappingExtensionsTests
 {
@@ -6,7 +6,7 @@ public class MappingExtensionsTests
     public void EmitsExtensionsFile()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }
@@ -19,7 +19,7 @@ public class MappingExtensionsTests
     public void EmitsToModelAndToDtoMethods()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }
@@ -35,7 +35,7 @@ public class MappingExtensionsTests
     public void ToModelMapsSimpleProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; public int Price { get; set; } }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }
@@ -50,7 +50,7 @@ public class MappingExtensionsTests
     public void ToDtoMapsSimpleProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; public int Price { get; set; } }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }
@@ -65,7 +65,7 @@ public class MappingExtensionsTests
     public void ToModelUsesRenamedPropertyNameOnModelSide()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string InternalSku { get; set; } = ""; }
             [FromModel(typeof(Product))]
             [RenameProperty(nameof(Product.InternalSku), "Sku")]
@@ -81,7 +81,7 @@ public class MappingExtensionsTests
     public void ToDtoUsesRenamedPropertyNameOnDtoSide()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string InternalSku { get; set; } = ""; }
             [FromModel(typeof(Product))]
             [RenameProperty(nameof(Product.InternalSku), "Sku")]
@@ -97,7 +97,7 @@ public class MappingExtensionsTests
     public void GetOnlyPropertiesAreExcludedFromBothMethods()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Id { get; } = ""; public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }
@@ -112,7 +112,7 @@ public class MappingExtensionsTests
     public void TypeMappedPropertyCallsToModelInToModelMethod()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }
@@ -130,7 +130,7 @@ public class MappingExtensionsTests
     public void TypeMappedPropertyCallsToDtoInToDtoMethod()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }
@@ -148,7 +148,7 @@ public class MappingExtensionsTests
     public void TypeMappedPropertyNonMappedPropertiesStillAppear()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }
@@ -167,7 +167,7 @@ public class MappingExtensionsTests
     public void TypeMappedNullablePropertyUsesNullConditional()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             #nullable enable
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
@@ -188,7 +188,7 @@ public class MappingExtensionsTests
     public void FlattenedPropertiesAreInToDtoButNotToModel()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             public class Order { public Address ShippingAddress { get; set; } = new(); public string Ref { get; set; } = ""; }
             [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
@@ -209,7 +209,7 @@ public class MappingExtensionsTests
     public void FlattenedNullableParentUsesNullConditionalInToDto()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             #nullable enable
             public class Address { public string Street { get; set; } = ""; }
             public class Order { public Address? ShippingAddress { get; set; } }
@@ -225,7 +225,7 @@ public class MappingExtensionsTests
     public void ExtensionsClassHintnameIncludesNamespace()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             namespace My.App
             {
@@ -241,7 +241,7 @@ public class MappingExtensionsTests
     public void ExtensionsClassUsesPublicAccessibilityWhenDtoIsPublic()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }
@@ -255,7 +255,7 @@ public class MappingExtensionsTests
     public void ExtensionsClassUsesInternalAccessibilityWhenDtoIsInternal()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
             internal partial class ProductDto { }
@@ -269,7 +269,7 @@ public class MappingExtensionsTests
     public void InitOnlyPropertiesAreIncludedInBothMethods()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; init; } = ""; }
             [FromModel(typeof(Product))]
             public partial class ProductDto { }

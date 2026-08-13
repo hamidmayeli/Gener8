@@ -42,7 +42,7 @@ Create an empty `partial class` and apply `[FromModel]`:
 
 ```csharp
 // DTOs/ProductDto.cs
-using FromModel;
+using Gener8;
 
 [FromModel(typeof(Product))]
 internal partial class ProductDto { }
@@ -93,7 +93,7 @@ To persist generated files to disk (useful for debugging), add this to your `.cs
 </PropertyGroup>
 ```
 
-Generated files appear under `obj/Debug/<tfm>/generated/FromModel/FromModel.FromModelGenerator/`.
+Generated files appear under `obj/Debug/<tfm>/generated/Gener8/Gener8.FromModelGenerator/`.
 
 ## Namespaces
 

@@ -1,4 +1,4 @@
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 public class RenamePropertyTests
 {
@@ -6,7 +6,7 @@ public class RenamePropertyTests
     public void RenameProperty_UsesTargetNameInOutput()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string InternalSku { get; set; } = ""; }
             [FromModel(typeof(Product))]
             [RenameProperty(nameof(Product.InternalSku), "Sku")]
@@ -22,7 +22,7 @@ public class RenamePropertyTests
     public void RenameProperty_MultipleRenamesApplied()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string InternalSku { get; set; } = ""; public string DisplayName { get; set; } = ""; }
             [FromModel(typeof(Product))]
             [RenameProperty(nameof(Product.InternalSku), "Sku")]
@@ -41,7 +41,7 @@ public class RenamePropertyTests
     public void RenameProperty_DoesNotApplyToFlattenedProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             public class Order { public Address ShippingAddress { get; set; } = new(); public string Reference { get; set; } = ""; }
             [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
@@ -59,7 +59,7 @@ public class RenamePropertyTests
     public void RenameProperty_UnknownSourceNameIsIgnored()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
             [RenameProperty("NonExistent", "Whatever")]

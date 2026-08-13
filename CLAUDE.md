@@ -6,8 +6,8 @@ C# source generator that copies public properties from a model class to a decora
 
 ```
 FromModel.slnx
-src/FromModel/
-├── FromModel.csproj        — netstandard2.0, Roslyn packages as private assets
+src/Gener8/
+├── Gener8.csproj           — netstandard2.0, Roslyn packages as private assets
 ├── FromModelGenerator.cs   — IIncrementalGenerator implementation (Emit + EmitExtensions)
 ├── SyntaxTransformer.cs    — Roslyn pipeline: predicate, ExtractClassTarget, BuildPropertyData
 ├── ClassTarget.cs          — record: ClassName, Namespace, Accessibility, Properties, ModelFullName
@@ -44,7 +44,7 @@ internal partial class TheDto {}
 
 ## Key details
 
-- Attribute full name: `FromModel.FromModelAttribute`
+- Attribute full name: `Gener8.FromModelAttribute`
 - Model lookup: resolved directly from the `typeof()` argument — fully-qualified names supported
 - Property filter: public, non-static only
 - All accessor kinds preserved: `get`, `set`, `init`
@@ -57,7 +57,7 @@ internal partial class TheDto {}
 ## Build
 
 ```
-dotnet build src/FromModel/FromModel.csproj
+dotnet build src/Gener8/Gener8.csproj
 dotnet test
 ```
 
@@ -67,7 +67,7 @@ The generator DLL is placed under `analyzers/dotnet/cs/` in the package (not `li
 
 Pack locally:
 ```
-dotnet pack src/FromModel/FromModel.csproj -c Release -p:Version=1.2.3
+dotnet pack src/Gener8/Gener8.csproj -c Release -p:Version=1.2.3
 ```
 
 ## CI / CD

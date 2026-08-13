@@ -1,4 +1,4 @@
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 public class TypeMappingTests
 {
@@ -6,7 +6,7 @@ public class TypeMappingTests
     public void MapsPropertyTypeToDto()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }
@@ -26,7 +26,7 @@ public class TypeMappingTests
     public void MultipleMappingsApplied()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }
@@ -55,7 +55,7 @@ public class TypeMappingTests
     public void UnmappedTypesArePreserved()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }

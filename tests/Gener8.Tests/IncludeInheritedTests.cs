@@ -1,4 +1,4 @@
-namespace FromModel.Tests;
+namespace Gener8.Tests;
 
 public class IncludeInheritedTests
 {
@@ -6,7 +6,7 @@ public class IncludeInheritedTests
     public void DefaultBehavior_ExcludesBaseProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Base { public string BaseName { get; set; } = ""; }
             public class Derived : Base { public string DerivedName { get; set; } = ""; }
             [FromModel(typeof(Derived))]
@@ -22,7 +22,7 @@ public class IncludeInheritedTests
     public void IncludeInherited_CopiesBaseProperties()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Base { public string BaseName { get; set; } = ""; }
             public class Derived : Base { public string DerivedName { get; set; } = ""; }
             [FromModel(typeof(Derived), IncludeInherited = true)]
@@ -38,7 +38,7 @@ public class IncludeInheritedTests
     public void IncludeInherited_MultiLevelChain()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class GrandBase { public int GrandValue { get; set; } }
             public class Base : GrandBase { public string BaseName { get; set; } = ""; }
             public class Derived : Base { public string DerivedName { get; set; } = ""; }
@@ -56,7 +56,7 @@ public class IncludeInheritedTests
     public void IncludeInherited_MostDerivedPropertyWins()
     {
         var results = GeneratorDriver.Run("""
-            using FromModel;
+            using Gener8;
             public class Base { public virtual string Name { get; set; } = "base"; }
             public class Derived : Base { public override string Name { get; set; } = "derived"; }
             [FromModel(typeof(Derived), IncludeInherited = true)]
