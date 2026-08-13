@@ -46,6 +46,8 @@ internal static class SyntaxTransformer
         var typeMappings = GetTypeMappings(classSymbol);
         var renameMap = GetRenameMap(classSymbol);
 
+        var modelFullName = modelSymbol!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
         var properties = new List<PropertyData>();
         foreach (var prop in GetModelProperties(modelSymbol!, includeInherited))
         {
@@ -64,7 +66,7 @@ internal static class SyntaxTransformer
                             FlattenPrefixMode.Gaped => prop.Name + "_" + nested.Name,
                             _ => null
                         };
-                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable));
+                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable, flattenParentName: prop.Name));
                     }
                 }
                 continue;
@@ -73,7 +75,7 @@ internal static class SyntaxTransformer
             properties.Add(BuildPropertyData(prop, typeMappings, renameMap));
         }
 
-        return new ClassTarget(classSymbol.Name, ns, accessibility, properties);
+        return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName);
     }
 
     private static Dictionary<string, string> GetTypeMappings(INamedTypeSymbol classSymbol)
@@ -113,11 +115,12 @@ internal static class SyntaxTransformer
         Dictionary<string, string> typeMappings,
         Dictionary<string, string>? renameMap,
         string? nameOverride = null,
-        bool parentIsNullable = false)
+        bool parentIsNullable = false,
+        string? flattenParentName = null)
     {
-        var typeDisplay = prop.Type.ToDisplayString();
-        if (typeMappings.TryGetValue(typeDisplay, out var mapped))
-            typeDisplay = mapped;
+        var originalType = prop.Type.ToDisplayString();
+        var hasTypeMapping = typeMappings.ContainsKey(originalType);
+        var typeDisplay = hasTypeMapping ? typeMappings[originalType] : originalType;
 
         if (parentIsNullable && !typeDisplay.EndsWith("?"))
             typeDisplay += "?";
@@ -125,13 +128,22 @@ internal static class SyntaxTransformer
         var name = nameOverride
             ?? (renameMap is not null && renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name);
 
+        var modelPropertyName = flattenParentName is null && name != prop.Name ? prop.Name : null;
+
+        var flattenedReadPath = flattenParentName is not null
+            ? (parentIsNullable ? $"{flattenParentName}?.{prop.Name}" : $"{flattenParentName}.{prop.Name}")
+            : null;
+
         return new PropertyData(
             typeDisplay, name,
             prop.GetMethod is not null,
             prop.SetMethod is not null && !prop.SetMethod.IsInitOnly,
             prop.SetMethod is { IsInitOnly: true },
             prop.IsRequired && !parentIsNullable,
-            GetInitializer(prop));
+            GetInitializer(prop),
+            modelPropertyName,
+            flattenedReadPath,
+            hasTypeMapping);
     }
 
     private static IEnumerable<IPropertySymbol> GetModelProperties(

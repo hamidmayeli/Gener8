@@ -160,7 +160,64 @@ internal partial class OrderDto { }
 
 ---
 
-## 5. Rename a property
+## 5. Mapping extension methods
+
+For every DTO, the generator automatically emits a companion static class `{DtoName}Extensions` with two extension methods:
+
+- `ToModel(this DtoType dto)` — maps the DTO back to the original model type
+- `ToDto(this ModelType model)` — maps the model to the DTO type
+
+```csharp
+public class Product { public string Name { get; set; } = ""; public decimal Price { get; set; } }
+
+[FromModel(typeof(Product))]
+internal partial class ProductDto { }
+
+// Generated ProductDtoExtensions:
+// internal static class ProductDtoExtensions
+// {
+//     public static Product ToModel(this ProductDto dto) => new Product { Name = dto.Name, Price = dto.Price };
+//     public static ProductDto ToDto(this Product model) => new ProductDto { Name = model.Name, Price = model.Price };
+// }
+```
+
+The extension class accessibility mirrors the DTO: `public` DTOs get `public` extensions, everything else gets `internal`.
+
+**With `[TypeMapping]`** — mapped properties generate chained calls rather than direct assignment. Null-conditional `?.` is used automatically for nullable mapped properties:
+
+```csharp
+[FromModel(typeof(Order))]
+[TypeMapping(typeof(Address), typeof(AddressDto))]
+internal partial class OrderDto { }
+
+// ToModel:  ShippingAddress = dto.ShippingAddress.ToModel(),
+// ToDto:    ShippingAddress = model.ShippingAddress.ToDto(),
+```
+
+**With `[RenameProperty]`** — the correct side is used in each method:
+
+```csharp
+[FromModel(typeof(Product))]
+[RenameProperty(nameof(Product.InternalSku), "Sku")]
+internal partial class ProductDto { }
+
+// ToModel:  InternalSku = dto.Sku,
+// ToDto:    Sku = model.InternalSku,
+```
+
+**With `Flatten`** — flattened properties appear in `ToDto` only (read via the nested path); they are omitted from `ToModel` because a flattened value cannot reconstruct the nested object:
+
+```csharp
+[FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
+internal partial class OrderDto { }
+
+// ToDto includes: ShippingAddressStreet = model.ShippingAddress.Street,
+// ToModel skips all flattened properties
+```
+
+---
+
+## 6. Rename a property
 
 Map a source property to a different name in the generated output. Apply `[RenameProperty]` once per rename — the attribute is repeatable.
 
@@ -187,6 +244,8 @@ Features compose freely. A typical real-world DTO might use several at once:
 [RenameProperty(nameof(Order.ExternalRef), "Reference")]
 internal partial class OrderResponseDto { }
 ```
+
+The companion `OrderResponseDtoExtensions` class is generated automatically alongside the DTO, with full awareness of all the above mappings and renames.
 
 ---
 

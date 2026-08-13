@@ -8,14 +8,20 @@ C# source generator that copies public properties from a model class to a decora
 FromModel.slnx
 src/FromModel/
 ├── FromModel.csproj        — netstandard2.0, Roslyn packages as private assets
-└── FromModelGenerator.cs   — IIncrementalGenerator implementation
+├── FromModelGenerator.cs   — IIncrementalGenerator implementation (Emit + EmitExtensions)
+├── SyntaxTransformer.cs    — Roslyn pipeline: predicate, ExtractClassTarget, BuildPropertyData
+├── ClassTarget.cs          — record: ClassName, Namespace, Accessibility, Properties, ModelFullName
+├── PropertyData.cs         — record: Type, Name, accessors, ModelPropertyName, FlattenedReadPath, HasTypeMapping
+└── DefaultSource.cs        — injected attribute source files
 ```
 
 ## How it works
 
-1. `RegisterPostInitializationOutput` injects `FromModelAttribute` into consumer projects — no separate runtime reference needed
-2. Consumers decorate a `partial class` with `[FromModel(nameof(TheModel))]`
-3. Generator resolves the named type via `Compilation.GetSymbolsWithName`, copies its public instance properties (preserving `get`/`set`/`init`), and emits a `partial class` source file
+1. `RegisterPostInitializationOutput` injects `FromModelAttribute` (and other attributes) into consumer projects — no separate runtime reference needed
+2. Consumers decorate a `partial class` with `[FromModel(typeof(TheModel))]`
+3. Generator copies public instance properties (preserving `get`/`set`/`init`, `required`, initializers) and emits two files per DTO:
+   - `{Namespace}.{ClassName}.g.cs` — the partial class with copied properties
+   - `{Namespace}.{ClassName}Extensions.g.cs` — `ToModel` / `ToDto` extension methods
 
 ## Usage
 
@@ -25,8 +31,15 @@ public class TheModel { public string Name { get; set; } }
 [FromModel(typeof(TheModel))]
 internal partial class TheDto {}
 
-// Generator emits:
+// Generator emits TheDto.g.cs:
 // internal partial class TheDto { public string Name { get; set; } }
+
+// Generator emits TheDtoExtensions.g.cs:
+// internal static class TheDtoExtensions
+// {
+//     public static TheModel ToModel(this TheDto dto) => new TheModel { Name = dto.Name };
+//     public static TheDto   ToDto(this TheModel model) => new TheDto { Name = model.Name };
+// }
 ```
 
 ## Key details
@@ -35,6 +48,10 @@ internal partial class TheDto {}
 - Model lookup: resolved directly from the `typeof()` argument — fully-qualified names supported
 - Property filter: public, non-static only
 - All accessor kinds preserved: `get`, `set`, `init`
+- `[TypeMapping(typeof(A), typeof(ADto))]` — remaps property types; extension methods generate chained `.ToModel()`/`.ToDto()` calls
+- `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
+- `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path) but are skipped in `ToModel`
+- Flattened + type-mapped properties are skipped in both extension methods (cannot chain through a flattened path)
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
 
 ## Build

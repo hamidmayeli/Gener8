@@ -56,6 +56,7 @@ All accessor kinds (`get`, `set`, `init`), the `required` modifier, and property
 | Include properties from base classes | `IncludeInherited = true` |
 | Inline (flatten) a nested object | `Flatten = [nameof(Model.Prop)]` |
 | Rename a property in the output | `[RenameProperty("OldName", "NewName")]` |
+| Mapping extension methods | Generated automatically alongside every DTO |
 
 See [doc/features.md](doc/features.md) for detailed examples of every feature.
 
@@ -99,6 +100,28 @@ internal partial class OrderDto { }
 [RenameProperty(nameof(Product.InternalSku), "Sku")]
 internal partial class ProductDto { }
 ```
+
+### Mapping extension methods
+
+Every `[FromModel]` DTO automatically gets a companion extensions class with `ToModel` and `ToDto` methods:
+
+```csharp
+[FromModel(typeof(Product))]
+internal partial class ProductDto { }
+
+// Generated automatically:
+// internal static class ProductDtoExtensions
+// {
+//     public static Product    ToModel(this ProductDto dto)    { ... }
+//     public static ProductDto ToDto  (this Product    model)  { ... }
+// }
+
+// Usage:
+ProductDto dto = product.ToDto();
+Product    model = dto.ToModel();
+```
+
+Type-mapped properties generate chained calls — `dto.ShippingAddress.ToModel()` and `model.ShippingAddress.ToDto()`.
 
 ## Documentation
 

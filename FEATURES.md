@@ -79,7 +79,27 @@ Name conflicts should produce a diagnostic rather than silently dropping one of 
 
 ---
 
-### ✅ 6. Rename a property
+### ✅ 6. Mapping extension methods
+
+Alongside every generated DTO, the generator emits a `{DtoName}Extensions` static class with two extension methods:
+
+- `ToModel(this DtoType dto)` — maps the DTO back to the model
+- `ToDto(this ModelType model)` — maps the model to the DTO
+
+Type-mapped properties generate chained calls (`dto.Address.ToModel()` / `model.Address.ToDto()`). Renamed properties use the correct side in each direction. Flattened properties are included in `ToDto` via their nested read path and skipped in `ToModel`.
+
+```csharp
+[FromModel(typeof(Product))]
+internal partial class ProductDto { }
+
+// Generated:
+// public static Product ToModel(this ProductDto dto) => new Product { Name = dto.Name, ... };
+// public static ProductDto ToDto(this Product model) => new ProductDto { Name = model.Name, ... };
+```
+
+---
+
+### ✅ 7. Rename a property
 
 Map a source property to a different name in the generated DTO. Implemented as a separate, repeatable attribute. Renames do not apply to properties introduced via `Flatten`.
 
@@ -92,7 +112,7 @@ internal partial class ProductDto { }
 
 ---
 
-### 7. Force nullability
+### 8. Force nullability
 
 Override accessor nullability for all copied properties — useful when building DTOs that represent optional/partial payloads (e.g., PATCH request bodies).
 
@@ -105,7 +125,7 @@ internal partial class ProductPatchDto { }
 
 ---
 
-### 8. Override accessors
+### 9. Override accessors
 
 Emit properties with a different accessor pattern than the source — for instance, force all properties to `init`-only in an immutable response DTO.
 
@@ -125,8 +145,9 @@ Possible values: `Preserve` (default), `GetOnly`, `GetSet`, `GetInit`.
 | 1 | Ignore properties | Low | High | ✅ Done |
 | 2 | Nested type mapping | Medium | High | ✅ Done |
 | 3 | Include inherited | Low | Medium | ✅ Done |
-| 6 | Rename property | Low | Medium | ✅ Done |
-| 7 | Force nullability | Low | Medium | |
-| 8 | Override accessors | Low | Medium | |
 | 4 | Flatten nested | Medium | Medium | ✅ Done |
 | 5 | Multiple source models | Medium | Low | |
+| 6 | Rename property | Low | Medium | ✅ Done |
+| 7 | Mapping extension methods | Medium | High | ✅ Done |
+| 8 | Force nullability | Low | Medium | |
+| 9 | Override accessors | Low | Medium | |

@@ -8,6 +8,7 @@ public class TypeMappingTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class Address { public string Street { get; set; } = ""; }
+            [FromModel(typeof(Address))]
             public partial class AddressDto { }
             public class Order { public Address ShippingAddress { get; set; } = new(); public string Reference { get; set; } = ""; }
             [FromModel(typeof(Order))]
@@ -27,8 +28,10 @@ public class TypeMappingTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class Address { public string Street { get; set; } = ""; }
+            [FromModel(typeof(Address))]
             public partial class AddressDto { }
             public class Customer { public string Name { get; set; } = ""; }
+            [FromModel(typeof(Customer))]
             public partial class CustomerDto { }
             public class Order
             {
@@ -54,6 +57,7 @@ public class TypeMappingTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class Address { public string Street { get; set; } = ""; }
+            [FromModel(typeof(Address))]
             public partial class AddressDto { }
             public class Tag { public string Label { get; set; } = ""; }
             public class Order { public Address ShippingAddress { get; set; } = new(); public Tag Category { get; set; } = new(); }

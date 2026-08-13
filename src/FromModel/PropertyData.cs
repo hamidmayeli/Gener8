@@ -7,5 +7,8 @@ internal sealed record PropertyData(
     bool HasSetter,
     bool IsInitOnly,
     bool IsRequired,
-    string? Initializer
+    string? Initializer,
+    string? ModelPropertyName,  // original model property name when renamed; null = same as Name
+    string? FlattenedReadPath,  // model-side read expression for flattened properties (e.g. "Address?.Street")
+    bool HasTypeMapping         // true when the property type was remapped via TypeMappingAttribute
 );

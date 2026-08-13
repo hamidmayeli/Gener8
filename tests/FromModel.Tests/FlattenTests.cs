@@ -41,6 +41,7 @@ public class FlattenTests
         var results = GeneratorDriver.Run("""
             using FromModel;
             public class Tag { public string Label { get; set; } = ""; }
+            [FromModel(typeof(Tag))]
             public partial class TagDto { }
             public class Address { public string Street { get; set; } = ""; public Tag Category { get; set; } = new(); }
             public class Order { public Address ShippingAddress { get; set; } = new(); }
