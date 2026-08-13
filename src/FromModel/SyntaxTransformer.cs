@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace FromModel;
 
@@ -22,7 +23,7 @@ internal static class SyntaxTransformer
             return null;
 
         if (!TryGetFromModelAttributeData(classSymbol, out AttributeData? attr)) return null;
-        if (!TryGetModelSymbol(attr!, out INamedTypeSymbol? modelSymbol)) return null;
+        if (!TryGetModelSymbol(attr, out INamedTypeSymbol? modelSymbol)) return null;
 
         var ns = classSymbol.ContainingNamespace is { IsGlobalNamespace: false } nsSymbol
             ? nsSymbol.ToDisplayString()
@@ -39,17 +40,17 @@ internal static class SyntaxTransformer
             _ => "internal"
         };
 
-        var ignoredNames = GetIgnoredProperties(attr!);
-        var flattenNames = GetFlattenProperties(attr!);
-        var flattenPrefix = GetFlattenPrefix(attr!);
-        var includeInherited = GetIncludeInherited(attr!);
+        var ignoredNames = GetIgnoredProperties(attr);
+        var flattenNames = GetFlattenProperties(attr);
+        var flattenPrefix = GetFlattenPrefix(attr);
+        var includeInherited = GetIncludeInherited(attr);
         var typeMappings = GetTypeMappings(classSymbol);
         var renameMap = GetRenameMap(classSymbol);
 
-        var modelFullName = modelSymbol!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         var properties = new List<PropertyData>();
-        foreach (var prop in GetModelProperties(modelSymbol!, includeInherited))
+        foreach (var prop in GetModelProperties(modelSymbol, includeInherited))
         {
             if (ignoredNames.Contains(prop.Name)) continue;
 
@@ -210,7 +211,7 @@ internal static class SyntaxTransformer
         return map;
     }
 
-    private static bool TryGetFromModelAttributeData(INamedTypeSymbol classSymbol, out AttributeData? attr)
+    private static bool TryGetFromModelAttributeData(INamedTypeSymbol classSymbol, [NotNullWhen(true)] out AttributeData? attr)
     {
         attr = null;
         foreach (var a in classSymbol.GetAttributes())
@@ -225,7 +226,7 @@ internal static class SyntaxTransformer
         return attr is not null && attr.ConstructorArguments.Length > 0;
     }
 
-    private static bool TryGetModelSymbol(AttributeData attr, out INamedTypeSymbol? modelSymbol)
+    private static bool TryGetModelSymbol(AttributeData attr, [NotNullWhen(true)] out INamedTypeSymbol? modelSymbol)
     {
         var arg = attr.ConstructorArguments[0];
         modelSymbol = null;
