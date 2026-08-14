@@ -24,7 +24,7 @@ src/Gener8/
 3. Generator copies public instance properties (preserving `get`/`set`/`init`, `required`, initializers) and emits up to three files per DTO:
    - `{Namespace}.{ClassName}.g.cs` — the partial class with copied properties
    - `{Namespace}.{ClassName}Extensions.g.cs` — `ToModel` / `ToDto` extension methods
-   - `{Namespace}.{ClassName}{DynamoDb|MongoDb}Repository.g.cs` — concrete repository (when `Repository` is set)
+   - `{Namespace}.{ClassName}Repository.g.cs` — concrete repository (when `Repository` is set)
 
 ## Usage
 
@@ -55,7 +55,7 @@ internal partial class TheDto {}
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path) but are skipped in `ToModel`
 - Flattened + type-mapped properties are skipped in both extension methods (cannot chain through a flattened path)
-- `Repository = RepositoryType.DynamoDb|MongoDb` — generates a concrete repository class inheriting `Gener8.Repository<T>`; consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` respectively
+- `Repository = RepositoryType.DynamoDb|MongoDb` — generates a concrete `{ClassName}Repository` class (partial, matching DTO accessibility) inheriting `Gener8.DynamoDbRepository<TModel, TDto>` or `Gener8.MongoDbRepository<TModel, TDto>`; `DynamoDb` takes `IDynamoDBContext context`, `MongoDb` takes `IMongoDatabase database`; both override `ToModel`/`ToDto` via the generated extension methods; base classes are emitted conditionally (once per kind per compilation, not injected unconditionally); consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` respectively
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
 
 ## Build

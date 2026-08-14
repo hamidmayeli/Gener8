@@ -137,29 +137,83 @@ Used with the `Repository` property of `[FromModel]` to opt into repository scaf
 | Member | Value | Description |
 |---|---|---|
 | `None` | `0` (default) | No repository is generated. |
-| `DynamoDb` | `1` | Generates a repository backed by `IAmazonDynamoDB`. Requires `AWSSDK.DynamoDBv2`. |
-| `MongoDb` | `2` | Generates a repository backed by `IMongoClient`. Requires `MongoDB.Driver`. |
+| `DynamoDb` | `1` | Generates a repository inheriting `Gener8.DynamoDbRepository<TModel, TDto>`. Constructor takes `IDynamoDBContext`. Requires `AWSSDK.DynamoDBv2`. |
+| `MongoDb` | `2` | Generates a repository inheriting `Gener8.MongoDbRepository<TModel, TDto>`. Constructor takes `IMongoDatabase`. Requires `MongoDB.Driver`. |
 
 See [features.md — Repository scaffold](features.md#7-repository-scaffold) for full examples.
 
 ---
 
-## `Gener8.Repository<T>` abstract base class
+## `Gener8.IRepository<TModel>` interface
 
-**Full name:** `Gener8.Repository<T>`  
-**Constraint:** `T : class`
+**Full name:** `Gener8.IRepository<TModel>`  
+**Constraint:** `TModel : class`  
+**Always injected:** yes (via `RegisterPostInitializationOutput`)
 
-Injected into every consumer project. All generated repository classes inherit from it. Defines the contract:
+Defines the standard CRUD contract. All generated repository classes implement this interface indirectly through their abstract base.
 
 ```csharp
-public abstract class Repository<T> where T : class
+public interface IRepository<TModel> where TModel : class
 {
-    public abstract Task<T?>               GetByIdAsync(string id, CancellationToken cancellationToken = default);
-    public abstract Task<IEnumerable<T>>   GetAllAsync(CancellationToken cancellationToken = default);
-    public abstract Task                   SaveAsync(T entity, CancellationToken cancellationToken = default);
-    public abstract Task                   DeleteAsync(string id, CancellationToken cancellationToken = default);
+    Task<TModel?> GetByIdAsync(object id, CancellationToken cancellationToken = default);
+    Task SaveAsync(TModel entity, CancellationToken cancellationToken = default);
+    Task DeleteAsync(TModel entity, CancellationToken cancellationToken = default);
+    Task DeleteByIdAsync(object id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<TModel>> GetAllAsync(CancellationToken cancellationToken = default);
 }
 ```
+
+---
+
+## `Gener8.ICompositeKeyRepository<TModel>` interface
+
+**Full name:** `Gener8.ICompositeKeyRepository<TModel>`  
+**Extends:** `IRepository<TModel>`  
+**Emitted alongside:** `DynamoDbRepository<TModel, TDto>` (conditionally, when at least one DTO uses `RepositoryType.DynamoDb`)
+
+Extends `IRepository<TModel>` with composite (hash + range) key overloads for DynamoDB tables that use a sort key.
+
+```csharp
+public interface ICompositeKeyRepository<TModel> : IRepository<TModel> where TModel : class
+{
+    Task<TModel?> GetByIdAsync(object hashKey, object rangeKey, CancellationToken cancellationToken = default);
+    Task DeleteByIdAsync(object hashKey, object rangeKey, CancellationToken cancellationToken = default);
+}
+```
+
+---
+
+## `Gener8.DynamoDbRepository<TModel, TDto>` abstract base
+
+**Full name:** `Gener8.DynamoDbRepository<TModel, TDto>`  
+**Implements:** `ICompositeKeyRepository<TModel>`  
+**Emitted:** conditionally — only when at least one DTO in the compilation sets `Repository = RepositoryType.DynamoDb`
+
+Abstract base for all generated DynamoDB repositories. Accepts an `IDynamoDBContext` and provides default implementations of every `ICompositeKeyRepository<TModel>` method. Derived classes must implement two abstract methods:
+
+```csharp
+protected abstract TModel ToModel(TDto dto);
+protected abstract TDto   ToDto(TModel model);
+```
+
+The generator overrides both by delegating to the DTO's extension methods (`dto.ToModel()` / `model.ToDto()`).
+
+---
+
+## `Gener8.MongoDbRepository<TModel, TDto>` abstract base
+
+**Full name:** `Gener8.MongoDbRepository<TModel, TDto>`  
+**Implements:** `IRepository<TModel>`  
+**Emitted:** conditionally — only when at least one DTO in the compilation sets `Repository = RepositoryType.MongoDb`
+
+Abstract base for all generated MongoDB repositories. Accepts an `IMongoDatabase` and a collection name, and provides default implementations of every `IRepository<TModel>` method via `IMongoCollection<TDto>`. Derived classes must implement:
+
+```csharp
+protected abstract TModel ToModel(TDto dto);
+protected abstract TDto   ToDto(TModel model);
+```
+
+The generator overrides both by delegating to the DTO's extension methods.
 
 ---
 

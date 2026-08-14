@@ -114,25 +114,27 @@ internal partial class ProductDto { }
 
 ### ✅ 8. Repository scaffold
 
-Opt into generating a concrete repository class that inherits from the injected `Gener8.Repository<T>` abstract base. Set `Repository = RepositoryType.DynamoDb` or `Repository = RepositoryType.MongoDb` on `[FromModel]`.
+Opt into generating a concrete repository class that inherits from the SDK-specific abstract base provided by Gener8. Set `Repository = RepositoryType.DynamoDb` or `Repository = RepositoryType.MongoDb` on `[FromModel]`.
 
 ```csharp
 [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
 internal partial class ProductDto { }
 
-// Generates ProductDtoDynamoDbRepository : Gener8.Repository<ProductDto>
-// with constructor (IAmazonDynamoDB client, DynamoDbRepositorySettings settings)
-// and four method stubs (GetByIdAsync, GetAllAsync, SaveAsync, DeleteAsync).
+// Generates ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
+// with constructor (IDynamoDBContext context)
+// and ToModel/ToDto overrides wired to the generated extension methods.
 ```
 
 ```csharp
 [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
 internal partial class ProductDto { }
 
-// Generates ProductDtoMongoDbRepository : Gener8.Repository<ProductDto>
-// with constructor (IMongoClient client, MongoDbRepositorySettings settings)
-// that resolves IMongoCollection<ProductDto> automatically.
+// Generates ProductDtoRepository : Gener8.MongoDbRepository<Product, ProductDto>
+// with constructor (IMongoDatabase database)
+// using "ProductDto" as the collection name.
 ```
+
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (full CRUD + composite-key overloads). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. The abstract base classes are emitted into the compilation only when at least one DTO requests them — they are never injected unconditionally.
 
 Requires `AWSSDK.DynamoDBv2` or `MongoDB.Driver` in the consuming project depending on the chosen type.
 

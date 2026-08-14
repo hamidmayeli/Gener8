@@ -59,7 +59,7 @@ All accessor kinds (`get`, `set`, `init`), the `required` modifier, and property
 | Mapping extension methods | Generated automatically alongside every DTO |
 | Generate a repository scaffold | `Repository = RepositoryType.DynamoDb` or `RepositoryType.MongoDb` |
 
-See [doc/features.md](doc/features.md) for detailed examples of every feature.
+See [docs/features.md](docs/features.md) for detailed examples of every feature.
 
 ## Examples
 
@@ -126,40 +126,36 @@ Type-mapped properties generate chained calls — `dto.ShippingAddress.ToModel()
 
 ### Repository scaffold
 
-Set `Repository` to generate a concrete repository class that inherits from the injected `Gener8.Repository<T>` abstract base:
+Set `Repository` to generate a concrete repository class that inherits from the SDK-specific abstract base provided by Gener8:
 
 ```csharp
 [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
 internal partial class ProductDto { }
 
-// Generates ProductDtoDynamoDbRepository.g.cs:
-// internal class ProductDtoDynamoDbRepository : global::Gener8.Repository<ProductDto>
+// Generates ProductDtoRepository.g.cs:
+// internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
 // {
-//     private readonly global::Amazon.DynamoDBv2.IAmazonDynamoDB _client;
-//     private readonly global::Gener8.DynamoDbRepositorySettings _settings;
-//
-//     public ProductDtoDynamoDbRepository(IAmazonDynamoDB client, DynamoDbRepositorySettings settings) { ... }
-//
-//     public override Task<ProductDto?> GetByIdAsync(string id, CancellationToken ct = default) => ...;
-//     public override Task<IEnumerable<ProductDto>> GetAllAsync(CancellationToken ct = default) => ...;
-//     public override Task SaveAsync(ProductDto entity, CancellationToken ct = default) => ...;
-//     public override Task DeleteAsync(string id, CancellationToken ct = default) => ...;
+//     public ProductDtoRepository(Amazon.DynamoDBv2.DataModel.IDynamoDBContext context) : base(context) {}
+//     protected override Product    ToModel(ProductDto dto)   => dto.ToModel();
+//     protected override ProductDto ToDto  (Product    model) => model.ToDto();
 // }
 ```
 
-Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoClient` and `MongoDbRepositorySettings` (holding `DatabaseName` and `CollectionName`) and exposes the collection as `_collection`.
+Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoDatabase` and sets the collection name to the DTO class name automatically.
 
-The four override stubs throw `NotImplementedException`; fill them in with your data-access logic. The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project.
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. Both abstract bases are emitted into the compilation only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
+
+The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [Getting started](doc/getting-started.md) | Installation, project setup, first DTO |
-| [Features](doc/features.md) | All features with full code examples |
-| [Attribute reference](doc/attributes.md) | Complete API reference for every attribute and parameter |
-| [How it works](doc/how-it-works.md) | Generator internals and Roslyn pipeline |
-| [Contributing](doc/contributing.md) | Build, test, NuGet packaging, CI/CD |
+| [Getting started](docs/getting-started.md) | Installation, project setup, first DTO |
+| [Features](docs/features.md) | All features with full code examples |
+| [Attribute reference](docs/attributes.md) | Complete API reference for every attribute and parameter |
+| [How it works](docs/how-it-works.md) | Generator internals and Roslyn pipeline |
+| [Contributing](docs/contributing.md) | Build, test, NuGet packaging, CI/CD |
 
 ## Building from source
 
