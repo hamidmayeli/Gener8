@@ -11,7 +11,7 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
     {
         context.RegisterPostInitializationOutput(ctx =>
         {
-            foreach (var source in DefaultSource.All)
+            foreach (var source in DefaultSource.Essentials)
                 ctx.AddSource(source.Filename, SourceText.From(source.Code, Encoding.UTF8));
         });
 
@@ -22,5 +22,12 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
             .Where(static target => target is not null);
 
         context.RegisterSourceOutput(pipeline, static (ctx, target) => SourceProducer.Emit(ctx, target!));
+
+        var repositoryKinds = pipeline
+            .Select(static (t, _) => t!.Repository)
+            .Where(static k => k != RepositoryKind.None)
+            .Collect();
+
+        context.RegisterSourceOutput(repositoryKinds, SourceProducer.EmitRepositoryBaseClasses);
     }
 }

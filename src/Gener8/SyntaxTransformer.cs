@@ -8,8 +8,6 @@ namespace Gener8;
 
 internal static class SyntaxTransformer
 {
-    private enum FlattenPrefixMode { Parent = 0, None = 1, Gaped = 2 }
-
     public static bool IsPartialClassWithAttributes(SyntaxNode node)
     {
         if (node is not ClassDeclarationSyntax cls) return false;

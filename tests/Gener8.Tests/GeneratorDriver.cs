@@ -39,6 +39,21 @@ internal static class GeneratorDriver
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
     }
 
+    // Use when testing generators that emit code referencing external SDK types (e.g. AWS, MongoDB).
+    // Skips the compilation-error check so tests can assert on generated text without providing stubs.
+    internal static IReadOnlyDictionary<string, string> RunUnchecked(params string[] sources)
+    {
+        var compilation = CreateCompilation(sources);
+        var driver = CSharpGeneratorDriver
+            .Create(new FromModelGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        return driver
+            .GetRunResult()
+            .Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
+    }
+
     private static CSharpCompilation CreateCompilation(string[] sources)
     {
         var syntaxTrees = sources.Select(s => CSharpSyntaxTree.ParseText(s)).ToArray();

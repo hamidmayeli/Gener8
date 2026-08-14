@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Collections.Immutable;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using System.Text;
 
@@ -138,6 +139,27 @@ internal static class SourceProducer
         context.AddSource(hintName, SourceText.From(sb.ToString(), Encoding.UTF8));
     }
 
+    public static void EmitRepositoryBaseClasses(SourceProductionContext context, ImmutableArray<RepositoryKind> kinds)
+    {
+        var emittedDynamo = false;
+        var emittedMongo = false;
+        foreach (var kind in kinds)
+        {
+            if (kind == RepositoryKind.DynamoDb && !emittedDynamo)
+            {
+                emittedDynamo = true;
+                context.AddSource(DefaultSource.DynamoDbRepositoryBaseClass.Filename,
+                    SourceText.From(DefaultSource.DynamoDbRepositoryBaseClass.Code, Encoding.UTF8));
+            }
+            else if (kind == RepositoryKind.MongoDb && !emittedMongo)
+            {
+                emittedMongo = true;
+                context.AddSource(DefaultSource.MongoDbRepositoryBaseClass.Filename,
+                    SourceText.From(DefaultSource.MongoDbRepositoryBaseClass.Code, Encoding.UTF8));
+            }
+        }
+    }
+
     private static void EmitRepository(SourceProductionContext context, ClassTarget target)
     {
         var sb = new StringBuilder();
@@ -157,58 +179,31 @@ internal static class SourceProducer
 
         if (target.Repository == RepositoryKind.DynamoDb)
         {
-            var repoClassName = $"{className}DynamoDbRepository";
-            sb.AppendLine($"{indent}{target.Accessibility} class {repoClassName} : global::Gener8.Repository<{className}>");
+            var repoClassName = $"{className}Repository";
+            sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.DynamoDbRepository<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    private readonly global::Amazon.DynamoDBv2.IAmazonDynamoDB _client;");
-            sb.AppendLine($"{indent}    private readonly global::Gener8.DynamoDbRepositorySettings _settings;");
-            sb.AppendLine();
-            sb.AppendLine($"{indent}    public {repoClassName}(global::Amazon.DynamoDBv2.IAmazonDynamoDB client, global::Gener8.DynamoDbRepositorySettings settings)");
-            sb.AppendLine($"{indent}    {{");
-            sb.AppendLine($"{indent}        _client = client;");
-            sb.AppendLine($"{indent}        _settings = settings;");
-            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    public {repoClassName}(Amazon.DynamoDBv2.DataModel.IDynamoDBContext context) : base(context) {{}}");
         }
-        else
+        
+        if (target.Repository == RepositoryKind.MongoDb)
         {
-            var repoClassName = $"{className}MongoDbRepository";
-            sb.AppendLine($"{indent}{target.Accessibility} class {repoClassName} : global::Gener8.Repository<{className}>");
+            var repoClassName = $"{className}Repository";
+            sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.MongoDbRepository<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    private readonly global::MongoDB.Driver.IMongoCollection<{className}> _collection;");
-            sb.AppendLine();
-            sb.AppendLine($"{indent}    public {repoClassName}(global::MongoDB.Driver.IMongoClient client, global::Gener8.MongoDbRepositorySettings settings)");
-            sb.AppendLine($"{indent}    {{");
-            sb.AppendLine($"{indent}        _collection = client.GetDatabase(settings.DatabaseName).GetCollection<{className}>(settings.CollectionName);");
-            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    public {repoClassName}(MongoDB.Driver.IMongoDatabase database) : base(database, \"{className}\") {{}}");
         }
 
-        sb.AppendLine();
-        EmitRepositoryMethodStubs(sb, indent, className);
+        sb.AppendLine($"{indent}    protected override {target.ModelFullName} ToModel({className} dto) => dto.ToModel();");
+        sb.AppendLine($"{indent}    protected override {className} ToDto({target.ModelFullName} model) => model.ToDto();");
         sb.AppendLine($"{indent}}}");
 
         if (target.Namespace is not null)
             sb.AppendLine("}");
 
-        var suffix = target.Repository == RepositoryKind.DynamoDb ? "DynamoDb" : "MongoDb";
         var hintName = target.Namespace is not null
-            ? $"{target.Namespace}.{className}{suffix}Repository.g.cs"
-            : $"{className}{suffix}Repository.g.cs";
+            ? $"{target.Namespace}.{className}Repository.g.cs"
+            : $"{className}Repository.g.cs";
 
         context.AddSource(hintName, SourceText.From(sb.ToString(), Encoding.UTF8));
-    }
-
-    private static void EmitRepositoryMethodStubs(StringBuilder sb, string indent, string className)
-    {
-        sb.AppendLine($"{indent}    public override global::System.Threading.Tasks.Task<{className}?> GetByIdAsync(string id, global::System.Threading.CancellationToken cancellationToken = default)");
-        sb.AppendLine($"{indent}        => throw new global::System.NotImplementedException();");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    public override global::System.Threading.Tasks.Task<global::System.Collections.Generic.IEnumerable<{className}>> GetAllAsync(global::System.Threading.CancellationToken cancellationToken = default)");
-        sb.AppendLine($"{indent}        => throw new global::System.NotImplementedException();");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    public override global::System.Threading.Tasks.Task SaveAsync({className} entity, global::System.Threading.CancellationToken cancellationToken = default)");
-        sb.AppendLine($"{indent}        => throw new global::System.NotImplementedException();");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    public override global::System.Threading.Tasks.Task DeleteAsync(string id, global::System.Threading.CancellationToken cancellationToken = default)");
-        sb.AppendLine($"{indent}        => throw new global::System.NotImplementedException();");
     }
 }
