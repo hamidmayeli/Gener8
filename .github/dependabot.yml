@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "monthly"
     cooldown:
-      default: 7
+      default-days: 7
     groups:
       nuget-dependencies:
         patterns:
@@ -15,8 +15,6 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-    cooldown:
-      default: 7
     groups:
       github-actions-dependencies:
         patterns:
