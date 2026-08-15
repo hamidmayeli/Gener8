@@ -268,13 +268,13 @@ Generated `ProductDtoRepository.g.cs`:
 
 internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
 {
-    public ProductDtoRepository(Amazon.DynamoDBv2.DataModel.IDynamoDBContext context) : base(context) {}
+    public ProductDtoRepository(IDynamoDbRepositoryContext context) : base(context) {}
     protected override Product    ToModel(ProductDto dto)   => dto.ToModel();
     protected override ProductDto ToDto  (Product    model) => model.ToDto();
 }
 ```
 
-The constructor accepts an `IDynamoDBContext` and delegates all CRUD operations to the `DynamoDbRepository<TModel, TDto>` base class. The base also implements `ICompositeKeyRepository<TModel>`, which extends `IRepository<TModel>` with two-key `GetByIdAsync` and `DeleteByIdAsync` overloads.
+The constructor accepts an `IDynamoDbRepositoryContext` (which wraps `IDynamoDBContext`) and delegates all CRUD operations to the `DynamoDbRepository<TModel, TDto>` base class. The base also implements `ICompositeKeyRepository<TModel>`, which extends `IRepository<TModel>` with two-key `GetByIdAsync` and `DeleteByIdAsync` overloads.
 
 Requires the `AWSSDK.DynamoDBv2` NuGet package.
 
@@ -293,19 +293,19 @@ Generated `ProductDtoRepository.g.cs`:
 
 internal partial class ProductDtoRepository : Gener8.MongoDbRepository<Product, ProductDto>
 {
-    public ProductDtoRepository(MongoDB.Driver.IMongoDatabase database) : base(database, "ProductDto") {}
+    public ProductDtoRepository(IMongoDbRepositoryContext context) : base(context, "ProductDto") {}
     protected override Product    ToModel(ProductDto dto)   => dto.ToModel();
     protected override ProductDto ToDto  (Product    model) => model.ToDto();
 }
 ```
 
-The constructor accepts an `IMongoDatabase` and uses the DTO class name as the collection name. The base class implements `IRepository<TModel>` and resolves the `IMongoCollection<TDto>` internally.
+The constructor accepts an `IMongoDbRepositoryContext` (which wraps `IMongoDatabase`) and uses the DTO class name as the collection name. The base class implements `IRepository<TModel>` and resolves the `IMongoCollection<TDto>` internally.
 
 Requires the `MongoDB.Driver` NuGet package.
 
 ### Abstract bases and interfaces
 
-The abstract base classes (`DynamoDbRepository<TModel, TDto>` and `MongoDbRepository<TModel, TDto>`) are emitted into the compilation **only when at least one DTO requests them** — they are never injected unconditionally so no SDK-type references leak into projects that do not use repositories.
+The abstract base classes (`DynamoDbRepository<TModel, TDto>` and `MongoDbRepository<TModel, TDto>`) are emitted into the compilation **only when at least one DTO requests them** — they are never injected unconditionally so no SDK-type references leak into projects that do not use repositories. The context interfaces (`IDynamoDbRepositoryContext` and `IMongoDbRepositoryContext`) are emitted alongside their respective base classes.
 
 The `IRepository<TModel>` interface (always injected) defines the standard CRUD contract:
 

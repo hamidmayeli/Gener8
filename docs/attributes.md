@@ -137,8 +137,8 @@ Used with the `Repository` property of `[FromModel]` to opt into repository scaf
 | Member | Value | Description |
 |---|---|---|
 | `None` | `0` (default) | No repository is generated. |
-| `DynamoDb` | `1` | Generates a repository inheriting `Gener8.DynamoDbRepository<TModel, TDto>`. Constructor takes `IDynamoDBContext`. Requires `AWSSDK.DynamoDBv2`. |
-| `MongoDb` | `2` | Generates a repository inheriting `Gener8.MongoDbRepository<TModel, TDto>`. Constructor takes `IMongoDatabase`. Requires `MongoDB.Driver`. |
+| `DynamoDb` | `1` | Generates a repository inheriting `Gener8.DynamoDbRepository<TModel, TDto>`. Constructor takes `IDynamoDbRepositoryContext`. Requires `AWSSDK.DynamoDBv2`. |
+| `MongoDb` | `2` | Generates a repository inheriting `Gener8.MongoDbRepository<TModel, TDto>`. Constructor takes `IMongoDbRepositoryContext`. Requires `MongoDB.Driver`. |
 
 See [features.md — Repository scaffold](features.md#7-repository-scaffold) for full examples.
 
@@ -183,13 +183,45 @@ public interface ICompositeKeyRepository<TModel> : IRepository<TModel> where TMo
 
 ---
 
+## `Gener8.IDynamoDbRepositoryContext` interface
+
+**Full name:** `Gener8.IDynamoDbRepositoryContext`  
+**Emitted alongside:** `DynamoDbRepository<TModel, TDto>` (conditionally)
+
+Wraps an `IDynamoDBContext` so the repository can be constructed without a direct dependency on the AWS SDK type. Consumers implement this interface (or use DI) to supply the underlying context.
+
+```csharp
+public interface IDynamoDbRepositoryContext
+{
+    IDynamoDBContext Context { get; }
+}
+```
+
+---
+
+## `Gener8.IMongoDbRepositoryContext` interface
+
+**Full name:** `Gener8.IMongoDbRepositoryContext`  
+**Emitted alongside:** `MongoDbRepository<TModel, TDto>` (conditionally)
+
+Wraps an `IMongoDatabase` so the repository can be constructed without a direct dependency on the MongoDB.Driver type. Consumers implement this interface (or use DI) to supply the underlying database.
+
+```csharp
+public interface IMongoDbRepositoryContext
+{
+    IMongoDatabase Context { get; }
+}
+```
+
+---
+
 ## `Gener8.DynamoDbRepository<TModel, TDto>` abstract base
 
 **Full name:** `Gener8.DynamoDbRepository<TModel, TDto>`  
 **Implements:** `ICompositeKeyRepository<TModel>`  
 **Emitted:** conditionally — only when at least one DTO in the compilation sets `Repository = RepositoryType.DynamoDb`
 
-Abstract base for all generated DynamoDB repositories. Accepts an `IDynamoDBContext` and provides default implementations of every `ICompositeKeyRepository<TModel>` method. Derived classes must implement two abstract methods:
+Abstract base for all generated DynamoDB repositories. Accepts an `IDynamoDbRepositoryContext` (which wraps `IDynamoDBContext`) and provides default implementations of every `ICompositeKeyRepository<TModel>` method. Derived classes must implement two abstract methods:
 
 ```csharp
 protected abstract TModel ToModel(TDto dto);
@@ -206,7 +238,7 @@ The generator overrides both by delegating to the DTO's extension methods (`dto.
 **Implements:** `IRepository<TModel>`  
 **Emitted:** conditionally — only when at least one DTO in the compilation sets `Repository = RepositoryType.MongoDb`
 
-Abstract base for all generated MongoDB repositories. Accepts an `IMongoDatabase` and a collection name, and provides default implementations of every `IRepository<TModel>` method via `IMongoCollection<TDto>`. Derived classes must implement:
+Abstract base for all generated MongoDB repositories. Accepts an `IMongoDbRepositoryContext` (which wraps `IMongoDatabase`) and a collection name, and provides default implementations of every `IRepository<TModel>` method via `IMongoCollection<TDto>`. Derived classes must implement:
 
 ```csharp
 protected abstract TModel ToModel(TDto dto);
@@ -214,31 +246,6 @@ protected abstract TDto   ToDto(TModel model);
 ```
 
 The generator overrides both by delegating to the DTO's extension methods.
-
----
-
-## `DynamoDbRepositorySettings`
-
-**Full name:** `Gener8.DynamoDbRepositorySettings`
-
-Settings class injected into every consumer project. Passed to the generated DynamoDB repository constructor.
-
-| Property | Type | Description |
-|---|---|---|
-| `TableName` | `string` | The DynamoDB table name to operate on. |
-
----
-
-## `MongoDbRepositorySettings`
-
-**Full name:** `Gener8.MongoDbRepositorySettings`
-
-Settings class injected into every consumer project. Passed to the generated MongoDB repository constructor.
-
-| Property | Type | Description |
-|---|---|---|
-| `DatabaseName` | `string` | The MongoDB database name. |
-| `CollectionName` | `string` | The MongoDB collection name. |
 
 ---
 

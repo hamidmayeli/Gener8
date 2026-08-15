@@ -71,7 +71,7 @@ public class RepositoryTests
     }
 
     [Fact]
-    public void DynamoDbRepositoryConstructorTakesDynamoDbContext()
+    public void DynamoDbRepositoryConstructorTakesDynamoDbRepositoryContext()
     {
         var results = GeneratorDriver.RunUnchecked(ProductModel + """
             [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
@@ -79,7 +79,7 @@ public class RepositoryTests
             """);
 
         var source = results["ProductDtoRepository.g.cs"];
-        Assert.Contains("IDynamoDBContext context", source);
+        Assert.Contains("IDynamoDbRepositoryContext context", source);
         Assert.Contains(": base(context)", source);
     }
 
@@ -201,7 +201,7 @@ public class RepositoryTests
     }
 
     [Fact]
-    public void MongoDbRepositoryConstructorTakesIMongoDatabase()
+    public void MongoDbRepositoryConstructorTakesIMongoDbRepositoryContext()
     {
         var results = GeneratorDriver.RunUnchecked(ProductModel + """
             [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
@@ -209,8 +209,8 @@ public class RepositoryTests
             """);
 
         var source = results["ProductDtoRepository.g.cs"];
-        Assert.Contains("IMongoDatabase database", source);
-        Assert.Contains(": base(database,", source);
+        Assert.Contains("IMongoDbRepositoryContext context", source);
+        Assert.Contains(": base(context,", source);
     }
 
     [Fact]
@@ -266,6 +266,30 @@ public class RepositoryTests
         Assert.Contains("ProductDto.g.cs", results.Keys);
         Assert.Contains("ProductDtoExtensions.g.cs", results.Keys);
         Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+    }
+
+    // ---- Custom ----
+
+    [Fact]
+    public void EmitsCustomRepositoryFile()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            [FromModel(typeof(Product), Repository = RepositoryType.Custom)]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+    }
+
+    [Fact]
+    public void EmitsCustomBaseClassFile()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            [FromModel(typeof(Product), Repository = RepositoryType.Custom)]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains("CustomRepository.g.cs", results.Keys);
     }
 
     // ---- Mixed (both kinds in the same compilation) ----

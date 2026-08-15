@@ -13,8 +13,7 @@ The generator runs entirely at **compile time** — it reads the semantic model 
 ```
 RegisterPostInitializationOutput
   → injects FromModelAttribute, TypeMappingAttribute, RenamePropertyAttribute,
-    FlattenPrefix, IRepository<T>, DynamoDbRepositorySettings,
-    MongoDbRepositorySettings into every consumer
+    FlattenPrefix, IRepository<T> into every consumer
 
 SyntaxProvider.CreateSyntaxProvider
   predicate  → IsPartialClassWithAttributes  (syntax-only fast filter)
@@ -44,8 +43,6 @@ Before any user code is examined, the generator calls `RegisterPostInitializatio
 | `TypeMappingAttribute.g.cs` | `[TypeMapping]` attribute class |
 | `RenamePropertyAttribute.g.cs` | `[RenameProperty]` attribute class |
 | `IRepository.g.cs` | `Gener8.IRepository<TModel>` interface |
-| `DynamoDbRepositorySettings.g.cs` | `DynamoDbRepositorySettings` settings class |
-| `MongoDbRepositorySettings.g.cs` | `MongoDbRepositorySettings` settings class |
 
 The SDK-heavy abstract base classes (`DynamoDbRepository<TModel, TDto>` and `MongoDbRepository<TModel, TDto>`) are **not** injected here. They are emitted conditionally in a separate `RegisterSourceOutput` step after all DTOs have been examined, ensuring they appear at most once per compilation and only when needed.
 
@@ -119,8 +116,8 @@ Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Pro
   {accessibility} partial class {ClassName}Repository
       : Gener8.DynamoDbRepository<{ModelFullName}, {ClassName}>   // or MongoDbRepository
   {
-      // DynamoDb: public {ClassName}Repository(IDynamoDBContext context) : base(context) {}
-      // MongoDb:  public {ClassName}Repository(IMongoDatabase database) : base(database, "{ClassName}") {}
+      // DynamoDb: public {ClassName}Repository(IDynamoDbRepositoryContext context) : base(context) {}
+      // MongoDb:  public {ClassName}Repository(IMongoDbRepositoryContext context) : base(context, "{ClassName}") {}
 
       protected override {ModelFullName} ToModel({ClassName} dto)    => dto.ToModel();
       protected override {ClassName}     ToDto({ModelFullName} model) => model.ToDto();

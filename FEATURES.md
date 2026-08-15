@@ -121,7 +121,7 @@ Opt into generating a concrete repository class that inherits from the SDK-speci
 internal partial class ProductDto { }
 
 // Generates ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
-// with constructor (IDynamoDBContext context)
+// with constructor (IDynamoDbRepositoryContext context)
 // and ToModel/ToDto overrides wired to the generated extension methods.
 ```
 
@@ -130,7 +130,7 @@ internal partial class ProductDto { }
 internal partial class ProductDto { }
 
 // Generates ProductDtoRepository : Gener8.MongoDbRepository<Product, ProductDto>
-// with constructor (IMongoDatabase database)
+// with constructor (IMongoDbRepositoryContext context)
 // using "ProductDto" as the collection name.
 ```
 

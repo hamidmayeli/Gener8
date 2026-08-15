@@ -143,6 +143,8 @@ internal static class SourceProducer
     {
         var emittedDynamo = false;
         var emittedMongo = false;
+        var emittedCustom = false;
+
         foreach (var kind in kinds)
         {
             if (kind == RepositoryKind.DynamoDb && !emittedDynamo)
@@ -156,6 +158,12 @@ internal static class SourceProducer
                 emittedMongo = true;
                 context.AddSource(DefaultSource.MongoDbRepositoryBaseClass.Filename,
                     SourceText.From(DefaultSource.MongoDbRepositoryBaseClass.Code, Encoding.UTF8));
+            }
+            else if (kind == RepositoryKind.Custom && !emittedCustom)
+            {
+                emittedCustom = true;
+                context.AddSource(DefaultSource.CustomRepositoryBaseClass.Filename,
+                    SourceText.From(DefaultSource.CustomRepositoryBaseClass.Code, Encoding.UTF8));
             }
         }
     }
@@ -182,7 +190,7 @@ internal static class SourceProducer
             var repoClassName = $"{className}Repository";
             sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.DynamoDbRepository<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    public {repoClassName}(Amazon.DynamoDBv2.DataModel.IDynamoDBContext context) : base(context) {{}}");
+            sb.AppendLine($"{indent}    public {repoClassName}(IDynamoDbRepositoryContext context) : base(context) {{}}");
         }
         
         if (target.Repository == RepositoryKind.MongoDb)
@@ -190,7 +198,15 @@ internal static class SourceProducer
             var repoClassName = $"{className}Repository";
             sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.MongoDbRepository<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    public {repoClassName}(MongoDB.Driver.IMongoDatabase database) : base(database, \"{className}\") {{}}");
+            sb.AppendLine($"{indent}    public {repoClassName}(IMongoDbRepositoryContext context) : base(context, \"{className}\") {{}}");
+        }
+
+        if (target.Repository == RepositoryKind.Custom)
+        {
+            var repoClassName = $"{className}Repository";
+            sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.RepositoryBase<{target.ModelFullName}, {className}>");
+            sb.AppendLine($"{indent}{{");
+            sb.AppendLine($"{indent}    public {repoClassName}(IRepositoryContext context) : base(context) {{}}");
         }
 
         sb.AppendLine($"{indent}    protected override {target.ModelFullName} ToModel({className} dto) => dto.ToModel();");

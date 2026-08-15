@@ -135,13 +135,13 @@ internal partial class ProductDto { }
 // Generates ProductDtoRepository.g.cs:
 // internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
 // {
-//     public ProductDtoRepository(Amazon.DynamoDBv2.DataModel.IDynamoDBContext context) : base(context) {}
+//     public ProductDtoRepository(IDynamoDbRepositoryContext context) : base(context) {}
 //     protected override Product    ToModel(ProductDto dto)   => dto.ToModel();
 //     protected override ProductDto ToDto  (Product    model) => model.ToDto();
 // }
 ```
 
-Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoDatabase` and sets the collection name to the DTO class name automatically.
+Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoDbRepositoryContext` and sets the collection name to the DTO class name automatically.
 
 `DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. Both abstract bases are emitted into the compilation only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
 
