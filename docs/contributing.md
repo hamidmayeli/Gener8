@@ -8,7 +8,7 @@
 ## Repository layout
 
 ```
-FromModel.slnx
+Gener8.slnx
 ├── src/Gener8/                 — the generator (netstandard2.0)
 │   ├── Gener8.csproj
 │   ├── FromModelGenerator.cs   — IIncrementalGenerator implementation
@@ -20,7 +20,7 @@ FromModel.slnx
 │   ├── FlattenPrefixMode.cs    — internal enum: Parent / None / Gaped
 │   ├── RepositoryKind.cs       — internal enum: None / DynamoDb / MongoDb
 │   └── IsExternalInit.cs       — polyfill for init-only setters on netstandard2.0
-├── tests/Gener8.Tests/         — xUnit test suite (net10.0)
+├── tests/Gener8.Tests/         — xUnit unit test suite (net10.0)
 │   ├── Gener8.Tests.csproj
 │   ├── GeneratorDriver.cs      — shared test helper: Run / RunUnchecked
 │   ├── FromModelGeneratorTests.cs
@@ -32,6 +32,9 @@ FromModel.slnx
 │   ├── RenamePropertyTests.cs
 │   ├── RepositoryTests.cs
 │   └── TypeMappingTests.cs
+├── tests/Gener8.DynamoDb.Integration.Tests/  — DynamoDB integration tests (net10.0, Testcontainers)
+├── tests/Gener8.MongoDb.Integration.Tests/   — MongoDB integration tests (net10.0, Testcontainers)
+├── tests/Gener8.CustomDb.Integration.Tests/  — Custom repository integration tests (net10.0, Testcontainers MsSql)
 └── samples/Gener8.Sample/      — console app that exercises the generator end-to-end
     ├── Gener8.Sample.csproj
     ├── Product.cs

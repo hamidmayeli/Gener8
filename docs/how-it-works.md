@@ -164,7 +164,8 @@ record PropertyData(
     string? Initializer,
     string? ModelPropertyName,   // original model name when [RenameProperty] was applied
     string? FlattenedReadPath,   // model-side read path for flattened props (e.g. "Address?.Street")
-    bool HasTypeMapping);        // true when the property type was remapped via [TypeMapping]
+    bool HasTypeMapping,         // true when the property type was remapped via [TypeMapping]
+    bool IsUserDeclared);        // true when the DTO already declares this property; skip in EmitModel, keep in mappings
 ```
 
 ---

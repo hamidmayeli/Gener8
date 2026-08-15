@@ -5,15 +5,15 @@ C# source generator that copies public properties from a model class to a decora
 ## Structure
 
 ```
-FromModel.slnx
+Gener8.slnx
 src/Gener8/
 ├── Gener8.csproj           — netstandard2.0, Roslyn packages as private assets
 ├── FromModelGenerator.cs   — IIncrementalGenerator implementation
 ├── SourceProducer.cs       — Emits the partial class, extension methods, and optional repository
 ├── SyntaxTransformer.cs    — Roslyn pipeline: predicate, ExtractClassTarget, BuildPropertyData
 ├── ClassTarget.cs          — record: ClassName, Namespace, Accessibility, Properties, ModelFullName, Repository
-├── PropertyData.cs         — record: Type, Name, accessors, ModelPropertyName, FlattenedReadPath, HasTypeMapping
-├── RepositoryKind.cs       — internal enum: None, DynamoDb, MongoDb
+├── PropertyData.cs         — record: Type, Name, accessors, ModelPropertyName, FlattenedReadPath, HasTypeMapping, IsUserDeclared
+├── RepositoryKind.cs       — internal enum: None, DynamoDb, MongoDb, Custom
 └── DefaultSource.cs        — injected attribute/enum/base-class source files
 ```
 
@@ -55,7 +55,7 @@ internal partial class TheDto {}
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path) but are skipped in `ToModel`
 - Flattened + type-mapped properties are skipped in both extension methods (cannot chain through a flattened path)
-- `Repository = RepositoryType.DynamoDb|MongoDb` — generates a concrete `{ClassName}Repository` class (partial, matching DTO accessibility) inheriting `Gener8.DynamoDbRepository<TModel, TDto>` or `Gener8.MongoDbRepository<TModel, TDto>`; `DynamoDb` takes `IDynamoDbRepositoryContext context`, `MongoDb` takes `IMongoDbRepositoryContext context`; both context interfaces (`IDynamoDbRepositoryContext` wraps `IDynamoDBContext`, `IMongoDbRepositoryContext` wraps `IMongoDatabase`) are emitted alongside their respective base classes; both override `ToModel`/`ToDto` via the generated extension methods; base classes are emitted conditionally (once per kind per compilation, not injected unconditionally); consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` respectively
+- `Repository = RepositoryType.DynamoDb|MongoDb|Custom` — generates a concrete `{ClassName}Repository` class (partial, matching DTO accessibility); `DynamoDb` inherits `Gener8.DynamoDbRepository<TModel, TDto>` and takes `IDynamoDbRepositoryContext` (wraps `IDynamoDBContext`); `MongoDb` inherits `Gener8.MongoDbRepository<TModel, TDto>` and takes `IMongoDbRepositoryContext` (wraps `IMongoDatabase`); `Custom` inherits `Gener8.RepositoryBase<TModel, TDto>` (declared `partial`) and takes `IRepositoryContext` (empty interface — consumer provides implementation); context interfaces and base classes are emitted conditionally (once per kind per compilation); SDK base classes override `ToModel`/`ToDto` via generated extension methods; consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` for DynamoDb/MongoDb respectively
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
 
 ## Build

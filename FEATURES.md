@@ -114,7 +114,7 @@ internal partial class ProductDto { }
 
 ### ✅ 8. Repository scaffold
 
-Opt into generating a concrete repository class that inherits from the SDK-specific abstract base provided by Gener8. Set `Repository = RepositoryType.DynamoDb` or `Repository = RepositoryType.MongoDb` on `[FromModel]`.
+Opt into generating a concrete repository class by setting `Repository` on `[FromModel]`. Three options are available: `RepositoryType.DynamoDb`, `RepositoryType.MongoDb`, and `RepositoryType.Custom`.
 
 ```csharp
 [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
@@ -134,9 +134,19 @@ internal partial class ProductDto { }
 // using "ProductDto" as the collection name.
 ```
 
-`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (full CRUD + composite-key overloads). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. The abstract base classes are emitted into the compilation only when at least one DTO requests them — they are never injected unconditionally.
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.Custom)]
+internal partial class ProductDto { }
 
-Requires `AWSSDK.DynamoDBv2` or `MongoDB.Driver` in the consuming project depending on the chosen type.
+// Generates ProductDtoRepository : Gener8.RepositoryBase<Product, ProductDto>
+// with constructor (IRepositoryContext context) — IRepositoryContext is an empty
+// marker interface; implement it to wrap your own DB context.
+// The class is partial — add CRUD methods in a second partial declaration.
+```
+
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (full CRUD + composite-key overloads). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. `RepositoryBase<TModel, TDto>` is a `partial` abstract base — no CRUD pre-implemented. All abstract base classes are emitted only when at least one DTO requests them.
+
+Requires `AWSSDK.DynamoDBv2` or `MongoDB.Driver` in the consuming project for DynamoDb/MongoDb respectively. `Custom` has no additional dependency.
 
 ---
 

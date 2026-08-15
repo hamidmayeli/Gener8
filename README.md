@@ -57,7 +57,7 @@ All accessor kinds (`get`, `set`, `init`), the `required` modifier, and property
 | Inline (flatten) a nested object | `Flatten = [nameof(Model.Prop)]` |
 | Rename a property in the output | `[RenameProperty("OldName", "NewName")]` |
 | Mapping extension methods | Generated automatically alongside every DTO |
-| Generate a repository scaffold | `Repository = RepositoryType.DynamoDb` or `RepositoryType.MongoDb` |
+| Generate a repository scaffold | `Repository = RepositoryType.DynamoDb`, `RepositoryType.MongoDb`, or `RepositoryType.Custom` |
 
 See [docs/features.md](docs/features.md) for detailed examples of every feature.
 
@@ -143,9 +143,11 @@ internal partial class ProductDto { }
 
 Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoDbRepositoryContext` and sets the collection name to the DTO class name automatically.
 
-`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. Both abstract bases are emitted into the compilation only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
+Use `RepositoryType.Custom` to get a `partial` scaffold backed by `Gener8.RepositoryBase<TModel, TDto>`. The constructor takes an `IRepositoryContext` (empty marker interface — wrap your own DB context). No CRUD methods are pre-generated; add them in a second partial class file. No extra NuGet package required.
 
-The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project.
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. All abstract bases are emitted only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
+
+The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project for DynamoDb/MongoDb respectively.
 
 ## Documentation
 
