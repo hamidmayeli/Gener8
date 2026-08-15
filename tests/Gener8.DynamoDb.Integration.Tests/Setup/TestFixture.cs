@@ -51,7 +51,7 @@ public class TestFixture : IAsyncLifetime
                 return new AmazonDynamoDBClient(credentials, config);
             })
             .AddSingleton<IDynamoDBContext, DynamoDBContext>()
-            .AddTransient<IRepository<Product>, ProductDtoRepository>()
+            .AddTransient<IRepository<Product>, ProductRepository>()
             .AddTransient<IDynamoDbRepositoryContext, DynamoDbRepositoryContext>();
 
         _serviceProvider = services.BuildServiceProvider();

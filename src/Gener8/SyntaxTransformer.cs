@@ -80,7 +80,7 @@ internal static class SyntaxTransformer
 
         var repositoryKind = GetRepositoryKind(attr);
 
-        return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName, repositoryKind);
+        return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName, modelSymbol.Name, repositoryKind);
     }
 
     private static HashSet<string> GetExistingDtoPropertyNames(INamedTypeSymbol classSymbol)

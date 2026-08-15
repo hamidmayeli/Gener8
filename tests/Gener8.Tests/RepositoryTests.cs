@@ -31,7 +31,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
-        Assert.Contains("class ProductDtoRepository", source);
+        var source = results["ProductRepository.g.cs"];
+        Assert.Contains("class ProductRepository", source);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
+        var source = results["ProductRepository.g.cs"];
         Assert.Contains("Gener8.DynamoDbRepository<", source);
         Assert.Contains("ProductDto>", source);
     }
@@ -78,7 +78,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
+        var source = results["ProductRepository.g.cs"];
         Assert.Contains("IDynamoDbRepositoryContext context", source);
         Assert.Contains(": base(context)", source);
     }
@@ -91,7 +91,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
+        var source = results["ProductRepository.g.cs"];
         Assert.Contains("ToModel(ProductDto dto) => dto.ToModel()", source);
         Assert.Contains("ToDto(", source);
         Assert.Contains("model) => model.ToDto()", source);
@@ -108,7 +108,7 @@ public class RepositoryTests
             }
             """);
 
-        Assert.Contains("My.App.ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("My.App.ProductRepository.g.cs", results.Keys);
     }
 
     [Fact]
@@ -119,8 +119,8 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
-        Assert.Contains("public partial class ProductDtoRepository", source);
+        var source = results["ProductRepository.g.cs"];
+        Assert.Contains("public partial class ProductRepository", source);
     }
 
     [Fact]
@@ -131,8 +131,8 @@ public class RepositoryTests
             internal partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
-        Assert.Contains("internal partial class ProductDtoRepository", source);
+        var source = results["ProductRepository.g.cs"];
+        Assert.Contains("internal partial class ProductRepository", source);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class RepositoryTests
 
         Assert.Contains("ProductDto.g.cs", results.Keys);
         Assert.Contains("ProductDtoExtensions.g.cs", results.Keys);
-        Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
+        var source = results["ProductRepository.g.cs"];
         Assert.Contains("Gener8.MongoDbRepository<", source);
         Assert.Contains("ProductDto>", source);
     }
@@ -208,7 +208,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
+        var source = results["ProductRepository.g.cs"];
         Assert.Contains("IMongoDbRepositoryContext context", source);
         Assert.Contains(": base(context,", source);
     }
@@ -221,7 +221,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        var source = results["ProductDtoRepository.g.cs"];
+        var source = results["ProductRepository.g.cs"];
         Assert.Contains("ToModel(ProductDto dto) => dto.ToModel()", source);
         Assert.Contains("model) => model.ToDto()", source);
     }
@@ -237,7 +237,7 @@ public class RepositoryTests
             }
             """);
 
-        Assert.Contains("My.App.ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("My.App.ProductRepository.g.cs", results.Keys);
     }
 
     [Fact]
@@ -265,7 +265,7 @@ public class RepositoryTests
 
         Assert.Contains("ProductDto.g.cs", results.Keys);
         Assert.Contains("ProductDtoExtensions.g.cs", results.Keys);
-        Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
     // ---- Custom ----
@@ -278,7 +278,7 @@ public class RepositoryTests
             public partial class ProductDto { }
             """);
 
-        Assert.Contains("ProductDtoRepository.g.cs", results.Keys);
+        Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
     [Fact]

@@ -28,7 +28,7 @@ public class TestFixture : IAsyncLifetime
 
         services
             .AddSingleton<IRepositoryContext>(new RepositoryContext(connectionString))
-            .AddTransient<IRepository<Product>, ProductDtoRepository>();
+            .AddTransient<IRepository<Product>, ProductRepository>();
 
         _serviceProvider = services.BuildServiceProvider();
 

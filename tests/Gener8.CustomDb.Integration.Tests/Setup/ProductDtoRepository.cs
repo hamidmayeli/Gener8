@@ -2,7 +2,7 @@
 
 namespace Gener8.CustomDb.Integration.Tests.Setup;
 
-public partial class ProductDtoRepository
+public partial class ProductRepository
 {
     protected override string CreateWhereClauseForId() => "WHERE Id = @Id";
 

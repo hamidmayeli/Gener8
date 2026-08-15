@@ -41,7 +41,7 @@ public class TestFixture : IAsyncLifetime
                 // MongoDB automatically creates the database on the first write
                 return client.GetDatabase("ProductDto");
             })
-            .AddTransient<IRepository<Product>, ProductDtoRepository>()
+            .AddTransient<IRepository<Product>, ProductRepository>()
             .AddTransient<IMongoDbRepositoryContext, MongoDbRepositoryContext>();
 
         _serviceProvider = services.BuildServiceProvider();

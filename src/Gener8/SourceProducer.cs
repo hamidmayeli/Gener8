@@ -186,10 +186,10 @@ internal static class SourceProducer
         }
 
         var className = target.ClassName;
+        var repoClassName = $"{target.ModelName}Repository";
 
         if (target.Repository == RepositoryKind.DynamoDb)
         {
-            var repoClassName = $"{className}Repository";
             sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.DynamoDbRepository<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
             sb.AppendLine($"{indent}    public {repoClassName}(IDynamoDbRepositoryContext context) : base(context) {{}}");
@@ -197,7 +197,6 @@ internal static class SourceProducer
         
         if (target.Repository == RepositoryKind.MongoDb)
         {
-            var repoClassName = $"{className}Repository";
             sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.MongoDbRepository<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
             sb.AppendLine($"{indent}    public {repoClassName}(IMongoDbRepositoryContext context) : base(context, \"{className}\") {{}}");
@@ -205,7 +204,6 @@ internal static class SourceProducer
 
         if (target.Repository == RepositoryKind.Custom)
         {
-            var repoClassName = $"{className}Repository";
             sb.AppendLine($"{indent}{target.Accessibility} partial class {repoClassName} : Gener8.RepositoryBase<{target.ModelFullName}, {className}>");
             sb.AppendLine($"{indent}{{");
             sb.AppendLine($"{indent}    public {repoClassName}(IRepositoryContext context) : base(context) {{}}");
@@ -219,8 +217,8 @@ internal static class SourceProducer
             sb.AppendLine("}");
 
         var hintName = target.Namespace is not null
-            ? $"{target.Namespace}.{className}Repository.g.cs"
-            : $"{className}Repository.g.cs";
+            ? $"{target.Namespace}.{repoClassName}.g.cs"
+            : $"{repoClassName}.g.cs";
 
         context.AddSource(hintName, SourceText.From(sb.ToString(), Encoding.UTF8));
     }
