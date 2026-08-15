@@ -1,19 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-	<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.103.1" />
-    <PackageReference Include="MongoDB.Driver" Version="3.11.0" />
+    <PackageReference Include="AWSSDK.DynamoDBv2" />
+    <PackageReference Include="MongoDB.Driver" />
   </ItemGroup>
-
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Gener8\Gener8.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
