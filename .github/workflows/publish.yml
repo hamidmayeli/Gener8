@@ -84,6 +84,8 @@ jobs:
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Tag release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git tag v${{ inputs.version }}
-          git push origin v${{ inputs.version }}
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git v${{ inputs.version }}
