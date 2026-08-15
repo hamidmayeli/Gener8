@@ -35,6 +35,8 @@ internal static class SourceProducer
 
         foreach (var prop in target.Properties)
         {
+            if (prop.IsUserDeclared) continue;
+
             var accessors = new StringBuilder(" {");
             if (prop.HasGetter) accessors.Append(" get;");
             if (prop.IsInitOnly) accessors.Append(" init;");

@@ -46,6 +46,7 @@ internal static class SyntaxTransformer
         var renameMap = GetRenameMap(classSymbol);
 
         var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var existingDtoProps = GetExistingDtoPropertyNames(classSymbol);
 
         var properties = new List<PropertyData>();
         foreach (var prop in GetModelProperties(modelSymbol, includeInherited))
@@ -65,18 +66,30 @@ internal static class SyntaxTransformer
                             FlattenPrefixMode.Gaped => prop.Name + "_" + nested.Name,
                             _ => null
                         };
-                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable, flattenParentName: prop.Name));
+                        var isUserDeclaredNested = existingDtoProps.Contains(nestedName ?? nested.Name);
+                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable, flattenParentName: prop.Name, isUserDeclared: isUserDeclaredNested));
                     }
                 }
                 continue;
             }
 
-            properties.Add(BuildPropertyData(prop, typeMappings, renameMap));
+            var dtoPropName = renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name;
+            var isUserDeclared = existingDtoProps.Contains(dtoPropName);
+            properties.Add(BuildPropertyData(prop, typeMappings, renameMap, isUserDeclared: isUserDeclared));
         }
 
         var repositoryKind = GetRepositoryKind(attr);
 
         return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName, repositoryKind);
+    }
+
+    private static HashSet<string> GetExistingDtoPropertyNames(INamedTypeSymbol classSymbol)
+    {
+        var names = new HashSet<string>();
+        foreach (var member in classSymbol.GetMembers())
+            if (member is IPropertySymbol prop && !prop.IsStatic)
+                names.Add(prop.Name);
+        return names;
     }
 
     private static Dictionary<string, string> GetTypeMappings(INamedTypeSymbol classSymbol)
@@ -117,7 +130,8 @@ internal static class SyntaxTransformer
         Dictionary<string, string>? renameMap,
         string? nameOverride = null,
         bool parentIsNullable = false,
-        string? flattenParentName = null)
+        string? flattenParentName = null,
+        bool isUserDeclared = false)
     {
         var originalType = prop.Type.ToDisplayString();
         var hasTypeMapping = typeMappings.ContainsKey(originalType);
@@ -144,7 +158,8 @@ internal static class SyntaxTransformer
             GetInitializer(prop),
             modelPropertyName,
             flattenedReadPath,
-            hasTypeMapping);
+            hasTypeMapping,
+            isUserDeclared);
     }
 
     private static IEnumerable<IPropertySymbol> GetModelProperties(
