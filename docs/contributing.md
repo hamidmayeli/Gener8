@@ -8,16 +8,21 @@
 ## Repository layout
 
 ```
-FromModel.slnx
+Gener8.slnx
 ├── src/Gener8/                 — the generator (netstandard2.0)
 │   ├── Gener8.csproj
 │   ├── FromModelGenerator.cs   — IIncrementalGenerator implementation
+│   ├── SourceProducer.cs       — emits model, extensions, and repository files
+│   ├── SyntaxTransformer.cs    — Roslyn pipeline: predicate + semantic transform
 │   ├── ClassTarget.cs          — internal record: class metadata for emit
 │   ├── PropertyData.cs         — internal record: per-property emit data
+│   ├── DefaultSource.cs        — injected attribute/enum/interface source strings
+│   ├── FlattenPrefixMode.cs    — internal enum: Parent / None / Gaped
+│   ├── RepositoryKind.cs       — internal enum: None / DynamoDb / MongoDb
 │   └── IsExternalInit.cs       — polyfill for init-only setters on netstandard2.0
-├── tests/Gener8.Tests/         — xUnit test suite (net10.0)
+├── tests/Gener8.Tests/         — xUnit unit test suite (net10.0)
 │   ├── Gener8.Tests.csproj
-│   ├── GeneratorDriver.cs      — shared test helper: runs the generator in-memory
+│   ├── GeneratorDriver.cs      — shared test helper: Run / RunUnchecked
 │   ├── FromModelGeneratorTests.cs
 │   ├── FlattenTests.cs
 │   ├── IgnorePropertiesTests.cs
@@ -25,10 +30,15 @@ FromModel.slnx
 │   ├── MappingExtensionsTests.cs
 │   ├── PropertyModifierTests.cs
 │   ├── RenamePropertyTests.cs
+│   ├── RepositoryTests.cs
 │   └── TypeMappingTests.cs
+├── tests/Gener8.DynamoDb.Integration.Tests/  — DynamoDB integration tests (net10.0, Testcontainers)
+├── tests/Gener8.MongoDb.Integration.Tests/   — MongoDB integration tests (net10.0, Testcontainers)
+├── tests/Gener8.CustomDb.Integration.Tests/  — Custom repository integration tests (net10.0, Testcontainers MsSql)
 └── samples/Gener8.Sample/      — console app that exercises the generator end-to-end
     ├── Gener8.Sample.csproj
     ├── Product.cs
+    ├── Repositories.cs
     └── Program.cs
 ```
 
@@ -58,12 +68,10 @@ dotnet test --filter "FullyQualifiedName~FlattenTests"
 
 ### Writing tests
 
-All tests use the shared `GeneratorDriver` helper in `tests/Gener8.Tests/GeneratorDriver.cs`. It:
+All tests use the shared `GeneratorDriver` helper in `tests/Gener8.Tests/GeneratorDriver.cs`. It provides two overloads:
 
-1. Creates a minimal in-memory `CSharpCompilation` with `mscorlib` and `System.Runtime` references.
-2. Runs `CSharpGeneratorDriver.Create(new FromModelGenerator()).RunGeneratorsAndUpdateCompilation(...)`.
-3. Asserts the post-generation compilation has **zero diagnostics** (no errors or warnings).
-4. Returns `Dictionary<string, string>` mapping hint names to generated source text.
+- **`Run(...)`** — creates a minimal in-memory `CSharpCompilation`, runs the generator, asserts the post-generation compilation has zero errors, and returns `Dictionary<string, string>` mapping hint names to generated source text. Use for all non-repository tests.
+- **`RunUnchecked(...)`** — same as `Run` but skips the compilation-error check. Use for repository tests, where the generated base classes reference SDK types (`IDynamoDBContext`, `IMongoDatabase`) that are not in the minimal test compilation. Lets tests assert on generated text without requiring AWS/MongoDB stubs.
 
 A typical test looks like:
 

@@ -112,7 +112,45 @@ internal partial class ProductDto { }
 
 ---
 
-### 8. Force nullability
+### ✅ 8. Repository scaffold
+
+Opt into generating a concrete repository class by setting `Repository` on `[FromModel]`. Three options are available: `RepositoryType.DynamoDb`, `RepositoryType.MongoDb`, and `RepositoryType.Custom`.
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
+// with constructor (IDynamoDbRepositoryContext context)
+// and ToModel/ToDto overrides wired to the generated extension methods.
+```
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoRepository : Gener8.MongoDbRepository<Product, ProductDto>
+// with constructor (IMongoDbRepositoryContext context)
+// using "ProductDto" as the collection name.
+```
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.Custom)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoRepository : Gener8.RepositoryBase<Product, ProductDto>
+// with constructor (IRepositoryContext context) — IRepositoryContext is an empty
+// marker interface; implement it to wrap your own DB context.
+// The class is partial — add CRUD methods in a second partial declaration.
+```
+
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (full CRUD + composite-key overloads). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. `RepositoryBase<TModel, TDto>` is a `partial` abstract base — no CRUD pre-implemented. All abstract base classes are emitted only when at least one DTO requests them.
+
+Requires `AWSSDK.DynamoDBv2` or `MongoDB.Driver` in the consuming project for DynamoDb/MongoDb respectively. `Custom` has no additional dependency.
+
+---
+
+### 10. Force nullability
 
 Override accessor nullability for all copied properties — useful when building DTOs that represent optional/partial payloads (e.g., PATCH request bodies).
 
@@ -125,7 +163,7 @@ internal partial class ProductPatchDto { }
 
 ---
 
-### 9. Override accessors
+### 11. Override accessors
 
 Emit properties with a different accessor pattern than the source — for instance, force all properties to `init`-only in an immutable response DTO.
 
@@ -149,5 +187,6 @@ Possible values: `Preserve` (default), `GetOnly`, `GetSet`, `GetInit`.
 | 5 | Multiple source models | Medium | Low | |
 | 6 | Rename property | Low | Medium | ✅ Done |
 | 7 | Mapping extension methods | Medium | High | ✅ Done |
-| 8 | Force nullability | Low | Medium | |
-| 9 | Override accessors | Low | Medium | |
+| 8 | Repository scaffold | Medium | High | ✅ Done |
+| 9 | Force nullability | Low | Medium | |
+| 10 | Override accessors | Low | Medium | |

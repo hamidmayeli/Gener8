@@ -14,16 +14,21 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Skip if not main branch
-        if: github.ref != 'refs/heads/main'
-        run: echo "Not on main branch, skipping publish."
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
       - name: Restore
         run: dotnet restore
@@ -31,8 +36,40 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release -p:Version=${{ inputs.version }}
 
-      - name: Test
-        run: dotnet test --no-build -c Release
+      - name: Unit Tests
+        id: unit
+        continue-on-error: true
+        run: dotnet run --project tests/Gener8.Tests -c Release --no-build
+
+      - name: Integration Tests - DynamoDb
+        id: dynamo
+        continue-on-error: true
+        run: dotnet run --project tests/Gener8.DynamoDb.Integration.Tests -c Release --no-build
+
+      - name: Integration Tests - MongoDb
+        id: mongo
+        continue-on-error: true
+        run: dotnet run --project tests/Gener8.MongoDb.Integration.Tests -c Release --no-build
+
+      - name: Integration Tests - CustomDb
+        id: custom
+        continue-on-error: true
+        run: dotnet run --project tests/Gener8.CustomDb.Integration.Tests -c Release --no-build
+
+      - name: Check test results
+        if: always()
+        run: |
+          failed=false
+          for outcome in "${{ steps.unit.outcome }}" "${{ steps.dynamo.outcome }}" "${{ steps.mongo.outcome }}" "${{ steps.custom.outcome }}"; do
+            if [ "$outcome" != "success" ]; then
+              failed=true
+            fi
+          done
+          if [ "$failed" = "true" ]; then
+            echo "One or more test suites failed"
+            exit 1
+          fi
+          echo "All test suites passed"
 
       - name: Pack
         run: dotnet pack src/Gener8/Gener8.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
@@ -41,7 +78,6 @@ jobs:
         uses: NuGet/login@v1
         id: nuget-login
         with:
-          # Your nuget.org profile name (NOT your email). Store in a secret.
           user: ${{ secrets.NUGET_USERNAME }}
 
       - name: Push to NuGet

@@ -24,6 +24,9 @@
     <Project Path="src/Gener8/Gener8.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Gener8.CustomDb.Integration.Tests/Gener8.CustomDb.Integration.Tests.csproj" Id="aefdb9d8-62e1-4b32-84e5-4d0e38d05e12" />
+    <Project Path="tests/Gener8.DynamoDb.Integration.Tests/Gener8.DynamoDb.Integration.Tests.csproj" Id="026352ba-d3cf-47db-a03d-b8b0cbad7467" />
+    <Project Path="tests/Gener8.MongoDb.Integration.Tests/Gener8.MongoDb.Integration.Tests.csproj" Id="b91b00e1-2c7f-440a-92ed-01ae6d3025c4" />
     <Project Path="tests/Gener8.Tests/Gener8.Tests.csproj" />
   </Folder>
 </Solution>

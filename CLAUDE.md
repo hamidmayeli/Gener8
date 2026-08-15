@@ -5,23 +5,26 @@ C# source generator that copies public properties from a model class to a decora
 ## Structure
 
 ```
-FromModel.slnx
+Gener8.slnx
 src/Gener8/
 ├── Gener8.csproj           — netstandard2.0, Roslyn packages as private assets
-├── FromModelGenerator.cs   — IIncrementalGenerator implementation (Emit + EmitExtensions)
+├── FromModelGenerator.cs   — IIncrementalGenerator implementation
+├── SourceProducer.cs       — Emits the partial class, extension methods, and optional repository
 ├── SyntaxTransformer.cs    — Roslyn pipeline: predicate, ExtractClassTarget, BuildPropertyData
-├── ClassTarget.cs          — record: ClassName, Namespace, Accessibility, Properties, ModelFullName
-├── PropertyData.cs         — record: Type, Name, accessors, ModelPropertyName, FlattenedReadPath, HasTypeMapping
-└── DefaultSource.cs        — injected attribute source files
+├── ClassTarget.cs          — record: ClassName, Namespace, Accessibility, Properties, ModelFullName, Repository
+├── PropertyData.cs         — record: Type, Name, accessors, ModelPropertyName, FlattenedReadPath, HasTypeMapping, IsUserDeclared
+├── RepositoryKind.cs       — internal enum: None, DynamoDb, MongoDb, Custom
+└── DefaultSource.cs        — injected attribute/enum/base-class source files
 ```
 
 ## How it works
 
 1. `RegisterPostInitializationOutput` injects `FromModelAttribute` (and other attributes) into consumer projects — no separate runtime reference needed
 2. Consumers decorate a `partial class` with `[FromModel(typeof(TheModel))]`
-3. Generator copies public instance properties (preserving `get`/`set`/`init`, `required`, initializers) and emits two files per DTO:
+3. Generator copies public instance properties (preserving `get`/`set`/`init`, `required`, initializers) and emits up to three files per DTO:
    - `{Namespace}.{ClassName}.g.cs` — the partial class with copied properties
    - `{Namespace}.{ClassName}Extensions.g.cs` — `ToModel` / `ToDto` extension methods
+   - `{Namespace}.{ClassName}Repository.g.cs` — concrete repository (when `Repository` is set)
 
 ## Usage
 
@@ -52,6 +55,7 @@ internal partial class TheDto {}
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path) but are skipped in `ToModel`
 - Flattened + type-mapped properties are skipped in both extension methods (cannot chain through a flattened path)
+- `Repository = RepositoryType.DynamoDb|MongoDb|Custom` — generates a concrete `{ClassName}Repository` class (partial, matching DTO accessibility); `DynamoDb` inherits `Gener8.DynamoDbRepository<TModel, TDto>` and takes `IDynamoDbRepositoryContext` (wraps `IDynamoDBContext`); `MongoDb` inherits `Gener8.MongoDbRepository<TModel, TDto>` and takes `IMongoDbRepositoryContext` (wraps `IMongoDatabase`); `Custom` inherits `Gener8.RepositoryBase<TModel, TDto>` (declared `partial`) and takes `IRepositoryContext` (empty interface — consumer provides implementation); context interfaces and base classes are emitted conditionally (once per kind per compilation); SDK base classes override `ToModel`/`ToDto` via generated extension methods; consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` for DynamoDb/MongoDb respectively
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
 
 ## Build

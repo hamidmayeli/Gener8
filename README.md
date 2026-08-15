@@ -57,8 +57,9 @@ All accessor kinds (`get`, `set`, `init`), the `required` modifier, and property
 | Inline (flatten) a nested object | `Flatten = [nameof(Model.Prop)]` |
 | Rename a property in the output | `[RenameProperty("OldName", "NewName")]` |
 | Mapping extension methods | Generated automatically alongside every DTO |
+| Generate a repository scaffold | `Repository = RepositoryType.DynamoDb`, `RepositoryType.MongoDb`, or `RepositoryType.Custom` |
 
-See [doc/features.md](doc/features.md) for detailed examples of every feature.
+See [docs/features.md](docs/features.md) for detailed examples of every feature.
 
 ## Examples
 
@@ -123,15 +124,40 @@ Product    model = dto.ToModel();
 
 Type-mapped properties generate chained calls — `dto.ShippingAddress.ToModel()` and `model.ShippingAddress.ToDto()`.
 
+### Repository scaffold
+
+Set `Repository` to generate a concrete repository class that inherits from the SDK-specific abstract base provided by Gener8:
+
+```csharp
+[FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+internal partial class ProductDto { }
+
+// Generates ProductDtoRepository.g.cs:
+// internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
+// {
+//     public ProductDtoRepository(IDynamoDbRepositoryContext context) : base(context) {}
+//     protected override Product    ToModel(ProductDto dto)   => dto.ToModel();
+//     protected override ProductDto ToDto  (Product    model) => model.ToDto();
+// }
+```
+
+Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoDbRepositoryContext` and sets the collection name to the DTO class name automatically.
+
+Use `RepositoryType.Custom` to get a `partial` scaffold backed by `Gener8.RepositoryBase<TModel, TDto>`. The constructor takes an `IRepositoryContext` (empty marker interface — wrap your own DB context). No CRUD methods are pre-generated; add them in a second partial class file. No extra NuGet package required.
+
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. All abstract bases are emitted only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
+
+The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project for DynamoDb/MongoDb respectively.
+
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [Getting started](doc/getting-started.md) | Installation, project setup, first DTO |
-| [Features](doc/features.md) | All features with full code examples |
-| [Attribute reference](doc/attributes.md) | Complete API reference for every attribute and parameter |
-| [How it works](doc/how-it-works.md) | Generator internals and Roslyn pipeline |
-| [Contributing](doc/contributing.md) | Build, test, NuGet packaging, CI/CD |
+| [Getting started](docs/getting-started.md) | Installation, project setup, first DTO |
+| [Features](docs/features.md) | All features with full code examples |
+| [Attribute reference](docs/attributes.md) | Complete API reference for every attribute and parameter |
+| [How it works](docs/how-it-works.md) | Generator internals and Roslyn pipeline |
+| [Contributing](docs/contributing.md) | Build, test, NuGet packaging, CI/CD |
 
 ## Building from source
 
