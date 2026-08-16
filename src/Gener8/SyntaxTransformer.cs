@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
@@ -47,6 +47,7 @@ internal static class SyntaxTransformer
 
         var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var existingDtoProps = GetExistingDtoPropertyNames(classSymbol);
+        var repositoryKind = GetRepositoryKind(attr);
 
         var properties = new List<PropertyData>();
         foreach (var prop in GetModelProperties(modelSymbol, includeInherited))
@@ -58,6 +59,7 @@ internal static class SyntaxTransformer
                 if (prop.Type is INamedTypeSymbol nestedType)
                 {
                     var parentIsNullable = prop.NullableAnnotation == NullableAnnotation.Annotated;
+                    var parentTypeFullName = nestedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
                     foreach (var nested in GetModelProperties(nestedType, includeInherited: false))
                     {
                         var nestedName = flattenPrefix switch
@@ -67,7 +69,11 @@ internal static class SyntaxTransformer
                             _ => null
                         };
                         var isUserDeclaredNested = existingDtoProps.Contains(nestedName ?? nested.Name);
-                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable, flattenParentName: prop.Name, isUserDeclared: isUserDeclaredNested));
+                        properties.Add(BuildPropertyData(
+                            nested, typeMappings, renameMap: null, repositoryKind,
+                            nameOverride: nestedName, parentIsNullable: parentIsNullable,
+                            flattenParentName: prop.Name, flattenParentTypeFullName: parentTypeFullName,
+                            isUserDeclared: isUserDeclaredNested));
                     }
                 }
                 continue;
@@ -75,10 +81,8 @@ internal static class SyntaxTransformer
 
             var dtoPropName = renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name;
             var isUserDeclared = existingDtoProps.Contains(dtoPropName);
-            properties.Add(BuildPropertyData(prop, typeMappings, renameMap, isUserDeclared: isUserDeclared));
+            properties.Add(BuildPropertyData(prop, typeMappings, renameMap, repositoryKind, isUserDeclared: isUserDeclared));
         }
-
-        var repositoryKind = GetRepositoryKind(attr);
 
         return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName, modelSymbol.Name, repositoryKind);
     }
@@ -128,17 +132,37 @@ internal static class SyntaxTransformer
         IPropertySymbol prop,
         Dictionary<string, string> typeMappings,
         Dictionary<string, string>? renameMap,
+        RepositoryKind repositoryKind,
         string? nameOverride = null,
         bool parentIsNullable = false,
         string? flattenParentName = null,
+        string? flattenParentTypeFullName = null,
         bool isUserDeclared = false)
     {
         var originalType = prop.Type.ToDisplayString();
         var hasTypeMapping = typeMappings.ContainsKey(originalType);
         var typeDisplay = hasTypeMapping ? typeMappings[originalType] : originalType;
 
+        // Capture type before applying parent nullability so we can track whether the
+        // nested property was originally nullable (vs. made nullable by the parent).
+        var typeBeforeParentNullability = typeDisplay;
         if (parentIsNullable && !typeDisplay.EndsWith("?"))
             typeDisplay += "?";
+
+        var flattenedOriginallyNullable = typeBeforeParentNullability.EndsWith("?");
+
+        // For DynamoDB/MongoDB, remap abstract collection interfaces to List<T> so the SDK
+        // can instantiate them. Only applies when there is no explicit TypeMapping override.
+        var needsSpreadAssignment = false;
+        if (!hasTypeMapping && (repositoryKind == RepositoryKind.DynamoDb))
+        {
+            var isNullable = typeDisplay.EndsWith("?");
+            if (TryRemapToConcreteCollection(prop.Type, out var baseRemapped) && baseRemapped is not null)
+            {
+                typeDisplay = isNullable ? baseRemapped + "?" : baseRemapped;
+                needsSpreadAssignment = true;
+            }
+        }
 
         var name = nameOverride
             ?? (renameMap is not null && renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name);
@@ -159,7 +183,37 @@ internal static class SyntaxTransformer
             modelPropertyName,
             flattenedReadPath,
             hasTypeMapping,
-            isUserDeclared);
+            isUserDeclared,
+            needsSpreadAssignment,
+            flattenParentName,
+            flattenParentTypeFullName,
+            flattenParentName is not null ? prop.Name : null,
+            flattenedOriginallyNullable);
+    }
+
+    // Remaps IReadOnlyCollection<T>, IReadOnlyList<T>, IEnumerable<T>, IList<T>, ICollection<T>
+    // to System.Collections.Generic.List<T>. Returns true and sets baseRemapped (without any
+    // trailing '?') when a remapping is warranted; caller handles nullability.
+    private static bool TryRemapToConcreteCollection(ITypeSymbol type, out string? baseRemapped)
+    {
+        baseRemapped = null;
+
+        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Interface, IsGenericType: true } namedType)
+            return false;
+
+        var constructedFromDisplay = namedType.ConstructedFrom.ToDisplayString();
+        var isCollectionInterface = constructedFromDisplay is
+            "System.Collections.Generic.IReadOnlyCollection<T>" or
+            "System.Collections.Generic.IReadOnlyList<T>" or
+            "System.Collections.Generic.IEnumerable<T>" or
+            "System.Collections.Generic.IList<T>" or
+            "System.Collections.Generic.ICollection<T>";
+
+        if (!isCollectionInterface) return false;
+
+        var typeArg = namedType.TypeArguments[0].ToDisplayString();
+        baseRemapped = $"System.Collections.Generic.List<{typeArg}>";
+        return true;
     }
 
     private static IEnumerable<IPropertySymbol> GetModelProperties(

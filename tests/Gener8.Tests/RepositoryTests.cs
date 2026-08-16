@@ -308,4 +308,53 @@ public class RepositoryTests
         Assert.Contains("DynamoDbRepository.g.cs", results.Keys);
         Assert.Contains("MongoDbRepository.g.cs", results.Keys);
     }
+
+    // ---- Abstract collection remapping (DynamoDB cannot instantiate interfaces) ----
+
+    [Fact]
+    public void DynamoDb_AbstractCollectionRemappedToList()
+    {
+        var results = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Product { public IReadOnlyCollection<int> Sizes { get; set; } = []; }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains("System.Collections.Generic.List<int>", source);
+        Assert.DoesNotContain("IReadOnlyCollection", source);
+    }
+
+    [Fact]
+    public void DynamoDb_AbstractCollectionUsesSpreadInToDto()
+    {
+        var results = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Product { public IReadOnlyCollection<int> Sizes { get; set; } = []; }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDtoExtensions.g.cs"];
+        Assert.Contains("[.. model.Sizes]", source);
+    }
+
+    [Fact]
+    public void DynamoDb_NonRepositoryDtoKeepsAbstractCollection()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Product { public IReadOnlyCollection<int> Sizes { get; set; } = []; }
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains("IReadOnlyCollection", source);
+        Assert.DoesNotContain("List<int>", source);
+    }
 }

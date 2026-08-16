@@ -1,5 +1,6 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 
@@ -81,7 +82,17 @@ internal static class SourceProducer
         sb.AppendLine($"{indent}{extAccessibility} static class {target.ClassName}Extensions");
         sb.AppendLine($"{indent}{{");
 
-        // ToModel: dto → model
+        // Pre-pass: group non-type-mapped flattened properties by parent for ToModel reconstruction.
+        var flattenedByParent = new Dictionary<string, List<PropertyData>>();
+        foreach (var prop in target.Properties)
+        {
+            if (prop.FlattenedParentName is null || prop.HasTypeMapping) continue;
+            if (!flattenedByParent.TryGetValue(prop.FlattenedParentName, out var list))
+                flattenedByParent[prop.FlattenedParentName] = list = [];
+            list.Add(prop);
+        }
+
+        // ToModel: dto -> model
         sb.AppendLine($"{indent}    public static {target.ModelFullName} ToModel(this {target.ClassName} dto)");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        return new {target.ModelFullName}");
@@ -98,11 +109,46 @@ internal static class SourceProducer
                 : $"dto.{prop.Name}";
             sb.AppendLine($"{indent}            {modelPropName} = {dtoRead},");
         }
+        // Reconstruct flattened parent objects from their spread DTO properties.
+        foreach (var kvp in flattenedByParent)
+        {
+            var parentName = kvp.Key;
+            var flatProps = kvp.Value;
+            var firstProp = flatProps[0];
+            var parentTypeFullName = firstProp.FlattenedParentTypeFullName!;
+            var parentIsNullable = firstProp.FlattenedReadPath!.Contains("?.");
+
+            if (parentIsNullable)
+            {
+                // Use the first property as the null indicator. C# flow analysis narrows it
+                // to non-null inside the false branch of the ternary.
+                sb.AppendLine($"{indent}            {parentName} = dto.{firstProp.Name} is null ? null : new {parentTypeFullName}");
+                sb.AppendLine($"{indent}            {{");
+                for (var i = 0; i < flatProps.Count; i++)
+                {
+                    var p = flatProps[i];
+                    // The first property is flow-narrowed after the null check above.
+                    // Subsequent properties whose type was made nullable solely by the parent
+                    // (not originally nullable) need '!' to satisfy the non-nullable target slot.
+                    var bang = (i > 0 && !p.FlattenedOriginallyNullable) ? "!" : "";
+                    sb.AppendLine($"{indent}                {p.FlattenedNestedPropertyName} = dto.{p.Name}{bang},");
+                }
+                sb.AppendLine($"{indent}            }},");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}            {parentName} = new {parentTypeFullName}");
+                sb.AppendLine($"{indent}            {{");
+                foreach (var p in flatProps)
+                    sb.AppendLine($"{indent}                {p.FlattenedNestedPropertyName} = dto.{p.Name},");
+                sb.AppendLine($"{indent}            }},");
+            }
+        }
         sb.AppendLine($"{indent}        }};");
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine();
 
-        // ToDto: model → dto
+        // ToDto: model -> dto
         sb.AppendLine($"{indent}    public static {target.ClassName} ToDto(this {target.ModelFullName} model)");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        return new {target.ClassName}");
@@ -114,15 +160,29 @@ internal static class SourceProducer
             if (prop.FlattenedReadPath is not null)
             {
                 if (prop.HasTypeMapping) continue;  // flattened + type-mapped: skip, cannot chain
-                rhs = $"model.{prop.FlattenedReadPath}";
+                if (prop.NeedsSpreadAssignment)
+                    rhs = BuildFlattenedSpreadRhs(prop.FlattenedReadPath);
+                else
+                    rhs = $"model.{prop.FlattenedReadPath}";
             }
             else
             {
                 var modelPropName = prop.ModelPropertyName ?? prop.Name;
                 var nc = prop.Type.EndsWith("?") ? "?" : "";
-                rhs = prop.HasTypeMapping
-                    ? $"model.{modelPropName}{nc}.ToDto()"
-                    : $"model.{modelPropName}";
+                if (prop.NeedsSpreadAssignment)
+                {
+                    // Abstract collection (IReadOnlyCollection<T> etc.) remapped to List<T>.
+                    // Use collection expression spread; handle nullable model property with null guard.
+                    rhs = prop.Type.EndsWith("?")
+                        ? $"model.{modelPropName} is null ? null : [.. model.{modelPropName}]"
+                        : $"[.. model.{modelPropName}]";
+                }
+                else
+                {
+                    rhs = prop.HasTypeMapping
+                        ? $"model.{modelPropName}{nc}.ToDto()"
+                        : $"model.{modelPropName}";
+                }
             }
             sb.AppendLine($"{indent}            {prop.Name} = {rhs},");
         }
@@ -139,6 +199,22 @@ internal static class SourceProducer
             : $"{target.ClassName}Extensions.g.cs";
 
         context.AddSource(hintName, SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    // Builds the right-hand-side expression for a flattened property that also needs a spread
+    // (e.g. the nested property type was IReadOnlyCollection<T> remapped to List<T>).
+    // FlattenedReadPath is "Parent.Child" (non-nullable parent) or "Parent?.Child" (nullable).
+    private static string BuildFlattenedSpreadRhs(string flattenedReadPath)
+    {
+        var nullIdx = flattenedReadPath.IndexOf("?.", System.StringComparison.Ordinal);
+        if (nullIdx >= 0)
+        {
+            var parent = flattenedReadPath.Substring(0, nullIdx);
+            var child = flattenedReadPath.Substring(nullIdx + 2);
+            // model.Parent?.Child is null → either parent or child is null; use parent!.Child in the spread.
+            return $"model.{parent}?.{child} is null ? null : [.. model.{parent}!.{child}]";
+        }
+        return $"[.. model.{flattenedReadPath}]";
     }
 
     public static void EmitRepositoryBaseClasses(SourceProductionContext context, ImmutableArray<RepositoryKind> kinds)
