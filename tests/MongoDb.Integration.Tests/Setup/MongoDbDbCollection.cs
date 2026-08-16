@@ -1,8 +1,8 @@
-﻿namespace Gener8.DynamoDb.Integration.Tests.Setup;
+﻿namespace MongoDb.Integration.Tests.Setup;
 
 // The string name must perfectly match across all test classes
 [CollectionDefinition("Shared DynamoDb Collection")]
-public class DynamoDbCollection : ICollectionFixture<TestFixture>
+public class MongoDbDbCollection : ICollectionFixture<TestFixture>
 {
     // This class has no code and is never instantiated.
     // Its only purpose is to apply the [CollectionDefinition] attribute

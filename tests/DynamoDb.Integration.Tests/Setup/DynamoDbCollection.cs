@@ -1,4 +1,4 @@
-﻿namespace Gener8.CustomDb.Integration.Tests.Setup;
+﻿namespace DynamoDb.Integration.Tests.Setup;
 
 // The string name must perfectly match across all test classes
 [CollectionDefinition("Shared DynamoDb Collection")]

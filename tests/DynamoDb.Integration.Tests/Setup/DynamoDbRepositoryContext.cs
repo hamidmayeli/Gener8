@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
+using Gener8;
 
-namespace Gener8.DynamoDb.Integration.Tests.Setup;
+namespace DynamoDb.Integration.Tests.Setup;
 
 internal class DynamoDbRepositoryContext(IDynamoDBContext context) : IDynamoDbRepositoryContext
 {

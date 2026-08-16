@@ -1,4 +1,6 @@
-﻿namespace Gener8.DynamoDb.Integration.Tests.Setup;
+﻿using Gener8;
+
+namespace DynamoDb.Integration.Tests.Setup;
 
 public class Category
 {

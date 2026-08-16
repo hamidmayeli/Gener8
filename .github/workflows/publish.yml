@@ -44,17 +44,17 @@ jobs:
       - name: Integration Tests - DynamoDb
         id: dynamo
         continue-on-error: true
-        run: dotnet run --project tests/Gener8.DynamoDb.Integration.Tests -c Release --no-build
+        run: dotnet run --project tests/DynamoDb.Integration.Tests -c Release --no-build
 
       - name: Integration Tests - MongoDb
         id: mongo
         continue-on-error: true
-        run: dotnet run --project tests/Gener8.MongoDb.Integration.Tests -c Release --no-build
+        run: dotnet run --project tests/MongoDb.Integration.Tests -c Release --no-build
 
       - name: Integration Tests - CustomDb
         id: custom
         continue-on-error: true
-        run: dotnet run --project tests/Gener8.CustomDb.Integration.Tests -c Release --no-build
+        run: dotnet run --project tests/CustomDb.Integration.Tests -c Release --no-build
 
       - name: Check test results
         if: always()

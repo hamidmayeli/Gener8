@@ -1,4 +1,5 @@
-﻿namespace Gener8.MongoDb.Integration.Tests.Setup;
+﻿using Gener8;
+namespace CustomDb.Integration.Tests.Setup;
 
 public class Category
 {

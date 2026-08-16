@@ -1,6 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 
-namespace Gener8.CustomDb.Integration.Tests.Setup;
+namespace CustomDb.Integration.Tests.Setup;
 
 public partial class ProductRepository
 {
