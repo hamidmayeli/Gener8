@@ -78,6 +78,7 @@ public class TestFixture : IAsyncLifetime
                         Name NVARCHAR(100) NOT NULL,
                         Description NVARCHAR(255) NULL,
                         CategoryName NVARCHAR(100) NULL,
+                        CategoryDescription NVARCHAR(255) NULL,
                         Sizes NVARCHAR(100) NOT NULL
                     );";
 

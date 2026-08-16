@@ -16,7 +16,11 @@ public class TestProductRepository(TestFixture fixture) : IClassFixture<TestFixt
         {
             Id = Guid.NewGuid(),
             Name = "Test Product",
-            Category = new() { Name = "Test Category" },
+            Category = new()
+            {
+                Name = "Test Category",
+                Description = "Test Category Description",
+            },
             Description = "Test Description",
             Sizes = [1, 2, 3],
         };
