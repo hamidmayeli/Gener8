@@ -1,7 +1,8 @@
-﻿using Gener8.DynamoDb.Integration.Tests.Setup;
+﻿using DynamoDb.Integration.Tests.Setup;
+using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Gener8.DynamoDb.Integration.Tests;
+namespace DynamoDb.Integration.Tests;
 
 [Collection("Shared DynamoDb Collection")]
 public class UnitTest1(TestFixture fixture) : IClassFixture<TestFixture>
@@ -12,7 +13,7 @@ public class UnitTest1(TestFixture fixture) : IClassFixture<TestFixture>
     public async Task Test1()
     {
         var product = new Product
-        { 
+        {
             Id = Guid.NewGuid(),
             Name = "Test Product",
             Category = new() { Name = "Test Category" },

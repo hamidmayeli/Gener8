@@ -1,5 +1,5 @@
-﻿using System.Text.Json;
-using Gener8.Sample;
+﻿using Gener8.Sample;
+using System.Text.Json;
 
 Console.WriteLine("Hello, World!");
 

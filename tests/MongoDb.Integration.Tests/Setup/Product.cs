@@ -1,6 +1,7 @@
-﻿using Amazon.DynamoDBv2.DataModel;
+﻿using Gener8;
+using MongoDB.Bson.Serialization.Attributes;
 
-namespace Gener8.DynamoDb.Integration.Tests.Setup;
+namespace MongoDb.Integration.Tests.Setup;
 
 public class Product
 {
@@ -10,10 +11,9 @@ public class Product
     public Category? Category { get; set; }
 }
 
-[FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
-[DynamoDBTable("Products")]
+[FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
 public partial class ProductDto
 {
-    [DynamoDBHashKey]
+    [BsonId]
     public required Guid Id { get; set; }
 }

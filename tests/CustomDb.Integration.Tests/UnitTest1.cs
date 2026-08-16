@@ -1,7 +1,8 @@
-﻿using Gener8.MongoDb.Integration.Tests.Setup;
+﻿using CustomDb.Integration.Tests.Setup;
+using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Gener8.MongoDb.Integration.Tests;
+namespace CustomDb.Integration.Tests;
 
 [Collection("Shared DynamoDb Collection")]
 public class UnitTest1(TestFixture fixture) : IClassFixture<TestFixture>

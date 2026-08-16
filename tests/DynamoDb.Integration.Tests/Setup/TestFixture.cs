@@ -2,10 +2,11 @@
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
+using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.DynamoDb;
 
-namespace Gener8.DynamoDb.Integration.Tests.Setup;
+namespace DynamoDb.Integration.Tests.Setup;
 
 public class TestFixture : IAsyncLifetime
 {

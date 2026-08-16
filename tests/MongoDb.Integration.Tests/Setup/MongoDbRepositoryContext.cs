@@ -1,6 +1,7 @@
-﻿using MongoDB.Driver;
+﻿using Gener8;
+using MongoDB.Driver;
 
-namespace Gener8.MongoDb.Integration.Tests.Setup;
+namespace MongoDb.Integration.Tests.Setup;
 
 internal class MongoDbRepositoryContext(IMongoDatabase context) : IMongoDbRepositoryContext
 {

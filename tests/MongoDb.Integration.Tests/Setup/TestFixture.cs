@@ -1,11 +1,12 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Gener8;
+using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using Testcontainers.MongoDb;
 
-namespace Gener8.MongoDb.Integration.Tests.Setup;
+namespace MongoDb.Integration.Tests.Setup;
 
 public class TestFixture : IAsyncLifetime
 {

@@ -1,4 +1,6 @@
-﻿namespace Gener8.CustomDb.Integration.Tests.Setup;
+﻿using Gener8;
+
+namespace MongoDb.Integration.Tests.Setup;
 
 public class Category
 {

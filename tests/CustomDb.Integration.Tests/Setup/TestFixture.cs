@@ -1,8 +1,9 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using Gener8;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;
 
-namespace Gener8.CustomDb.Integration.Tests.Setup;
+namespace CustomDb.Integration.Tests.Setup;
 
 public class TestFixture : IAsyncLifetime
 {
