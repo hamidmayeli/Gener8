@@ -1,6 +1,8 @@
-﻿using Microsoft.CodeAnalysis;
+using Gener8.Contexts;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
@@ -15,7 +17,7 @@ internal static class SyntaxTransformer
         return cls.Modifiers.Any(SyntaxKind.PartialKeyword);
     }
 
-    public static ClassTarget? ExtractClassTarget(GeneratorSyntaxContext context)
+    public static TargetClass? ExtractClassTarget(GeneratorSyntaxContext context)
     {
         if (context.SemanticModel.GetDeclaredSymbol(context.Node) is not INamedTypeSymbol classSymbol)
             return null;
@@ -38,178 +40,18 @@ internal static class SyntaxTransformer
             _ => "internal"
         };
 
-        var ignoredNames = GetIgnoredProperties(attr);
-        var flattenNames = GetFlattenProperties(attr);
-        var flattenPrefix = GetFlattenPrefix(attr);
-        var includeInherited = GetIncludeInherited(attr);
-        var typeMappings = GetTypeMappings(classSymbol);
-        var renameMap = GetRenameMap(classSymbol);
-
-        var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var existingDtoProps = GetExistingDtoPropertyNames(classSymbol);
-
-        var properties = new List<PropertyData>();
-        foreach (var prop in GetModelProperties(modelSymbol, includeInherited))
-        {
-            if (ignoredNames.Contains(prop.Name)) continue;
-
-            if (flattenNames.Contains(prop.Name))
-            {
-                if (prop.Type is INamedTypeSymbol nestedType)
-                {
-                    var parentIsNullable = prop.NullableAnnotation == NullableAnnotation.Annotated;
-                    foreach (var nested in GetModelProperties(nestedType, includeInherited: false))
-                    {
-                        var nestedName = flattenPrefix switch
-                        {
-                            FlattenPrefixMode.Parent => prop.Name + nested.Name,
-                            FlattenPrefixMode.Gaped => prop.Name + "_" + nested.Name,
-                            _ => null
-                        };
-                        var isUserDeclaredNested = existingDtoProps.Contains(nestedName ?? nested.Name);
-                        properties.Add(BuildPropertyData(nested, typeMappings, renameMap: null, nameOverride: nestedName, parentIsNullable: parentIsNullable, flattenParentName: prop.Name, isUserDeclared: isUserDeclaredNested));
-                    }
-                }
-                continue;
-            }
-
-            var dtoPropName = renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name;
-            var isUserDeclared = existingDtoProps.Contains(dtoPropName);
-            properties.Add(BuildPropertyData(prop, typeMappings, renameMap, isUserDeclared: isUserDeclared));
-        }
-
         var repositoryKind = GetRepositoryKind(attr);
+        var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-        return new ClassTarget(classSymbol.Name, ns, accessibility, properties, modelFullName, modelSymbol.Name, repositoryKind);
-    }
+        var properties = new PropertyDataBuilder(classSymbol, attr, modelSymbol, repositoryKind).GetProperties();
 
-    private static HashSet<string> GetExistingDtoPropertyNames(INamedTypeSymbol classSymbol)
-    {
-        var names = new HashSet<string>();
-        foreach (var member in classSymbol.GetMembers())
-            if (member is IPropertySymbol prop && !prop.IsStatic)
-                names.Add(prop.Name);
-        return names;
-    }
-
-    private static Dictionary<string, string> GetTypeMappings(INamedTypeSymbol classSymbol)
-    {
-        var typeMappings = new Dictionary<string, string>();
-        foreach (var a in classSymbol.GetAttributes())
-        {
-            if (a.AttributeClass?.ToDisplayString() != DefaultSource.TypeMappingAttribute.Name) continue;
-            if (a.ConstructorArguments.Length < 2) continue;
-            if (a.ConstructorArguments[0].Kind != TypedConstantKind.Type) continue;
-            if (a.ConstructorArguments[1].Kind != TypedConstantKind.Type) continue;
-            if (a.ConstructorArguments[0].Value is not INamedTypeSymbol sourceType) continue;
-            if (a.ConstructorArguments[1].Value is not INamedTypeSymbol targetType) continue;
-            typeMappings[sourceType.ToDisplayString()] = targetType.ToDisplayString();
-        }
-
-        return typeMappings;
-    }
-
-    private static HashSet<string> GetIgnoredProperties(AttributeData attr)
-    {
-        var ignoredNames = new HashSet<string>();
-        foreach (var namedArg in attr.NamedArguments)
-        {
-            if (namedArg.Key != "Ignore") continue;
-
-            foreach (var item in namedArg.Value.Values)
-                if (item.Value is string name)
-                    ignoredNames.Add(name);
-        }
-
-        return ignoredNames;
-    }
-
-    private static PropertyData BuildPropertyData(
-        IPropertySymbol prop,
-        Dictionary<string, string> typeMappings,
-        Dictionary<string, string>? renameMap,
-        string? nameOverride = null,
-        bool parentIsNullable = false,
-        string? flattenParentName = null,
-        bool isUserDeclared = false)
-    {
-        var originalType = prop.Type.ToDisplayString();
-        var hasTypeMapping = typeMappings.ContainsKey(originalType);
-        var typeDisplay = hasTypeMapping ? typeMappings[originalType] : originalType;
-
-        if (parentIsNullable && !typeDisplay.EndsWith("?"))
-            typeDisplay += "?";
-
-        var name = nameOverride
-            ?? (renameMap is not null && renameMap.TryGetValue(prop.Name, out var renamed) ? renamed : prop.Name);
-
-        var modelPropertyName = flattenParentName is null && name != prop.Name ? prop.Name : null;
-
-        var flattenedReadPath = flattenParentName is not null
-            ? (parentIsNullable ? $"{flattenParentName}?.{prop.Name}" : $"{flattenParentName}.{prop.Name}")
-            : null;
-
-        return new PropertyData(
-            typeDisplay, name,
-            prop.GetMethod is not null,
-            prop.SetMethod is not null && !prop.SetMethod.IsInitOnly,
-            prop.SetMethod is { IsInitOnly: true },
-            prop.IsRequired && !parentIsNullable,
-            GetInitializer(prop),
-            modelPropertyName,
-            flattenedReadPath,
-            hasTypeMapping,
-            isUserDeclared);
-    }
-
-    private static IEnumerable<IPropertySymbol> GetModelProperties(
-        INamedTypeSymbol modelSymbol, bool includeInherited)
-    {
-        var seenNames = new HashSet<string>();
-        var current = modelSymbol;
-
-        while (current is not null && current.SpecialType != SpecialType.System_Object)
-        {
-            foreach (var member in current.GetMembers())
-            {
-                if (member is not IPropertySymbol prop) continue;
-                if (prop.DeclaredAccessibility != Accessibility.Public) continue;
-                if (prop.IsStatic) continue;
-                if (!seenNames.Add(prop.Name)) continue;
-                yield return prop;
-            }
-            if (!includeInherited) break;
-            current = current.BaseType;
-        }
-    }
-
-    private static bool GetIncludeInherited(AttributeData attr)
-    {
-        foreach (var namedArg in attr.NamedArguments)
-            if (namedArg.Key == "IncludeInherited" && namedArg.Value.Value is bool val)
-                return val;
-        return false;
-    }
-
-    private static HashSet<string> GetFlattenProperties(AttributeData attr)
-    {
-        var result = new HashSet<string>();
-        foreach (var namedArg in attr.NamedArguments)
-        {
-            if (namedArg.Key != "Flatten") continue;
-            foreach (var item in namedArg.Value.Values)
-                if (item.Value is string name)
-                    result.Add(name);
-        }
-        return result;
-    }
-
-    private static FlattenPrefixMode GetFlattenPrefix(AttributeData attr)
-    {
-        foreach (var namedArg in attr.NamedArguments)
-            if (namedArg.Key == "FlattenPrefix" && namedArg.Value.Value is int val)
-                return (FlattenPrefixMode)val;
-        return FlattenPrefixMode.Parent;
+        return new TargetClass(
+            classSymbol.Name,
+            ns,
+            accessibility,
+            properties,
+            new(modelFullName, modelSymbol.Name),
+            repositoryKind);
     }
 
     private static RepositoryKind GetRepositoryKind(AttributeData attr)
@@ -217,21 +59,8 @@ internal static class SyntaxTransformer
         foreach (var namedArg in attr.NamedArguments)
             if (namedArg.Key == "Repository" && namedArg.Value.Value is int val)
                 return (RepositoryKind)val;
-        return RepositoryKind.None;
-    }
 
-    private static Dictionary<string, string> GetRenameMap(INamedTypeSymbol classSymbol)
-    {
-        var map = new Dictionary<string, string>();
-        foreach (var a in classSymbol.GetAttributes())
-        {
-            if (a.AttributeClass?.ToDisplayString() != DefaultSource.RenamePropertyAttribute.Name) continue;
-            if (a.ConstructorArguments.Length < 2) continue;
-            if (a.ConstructorArguments[0].Value is not string sourceName) continue;
-            if (a.ConstructorArguments[1].Value is not string targetName) continue;
-            map[sourceName] = targetName;
-        }
-        return map;
+        return RepositoryKind.None;
     }
 
     private static bool TryGetFromModelAttributeData(INamedTypeSymbol classSymbol, [NotNullWhen(true)] out AttributeData? attr)
@@ -259,15 +88,5 @@ internal static class SyntaxTransformer
 
         modelSymbol = ms;
         return true;
-    }
-
-    private static string? GetInitializer(IPropertySymbol prop)
-    {
-        if (prop.DeclaringSyntaxReferences.Length > 0
-            && prop.DeclaringSyntaxReferences[0].GetSyntax() is PropertyDeclarationSyntax propSyntax
-            && propSyntax.Initializer is not null)
-            return propSyntax.Initializer.Value.ToString();
-
-        return null;
     }
 }

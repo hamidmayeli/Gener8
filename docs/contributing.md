@@ -9,20 +9,27 @@
 
 ```
 Gener8.slnx
-├── src/Gener8/                 — the generator (netstandard2.0)
+├── src/Gener8/                     — the generator (netstandard2.0)
 │   ├── Gener8.csproj
-│   ├── FromModelGenerator.cs   — IIncrementalGenerator implementation
-│   ├── SourceProducer.cs       — emits model, extensions, and repository files
-│   ├── SyntaxTransformer.cs    — Roslyn pipeline: predicate + semantic transform
-│   ├── ClassTarget.cs          — internal record: class metadata for emit
-│   ├── PropertyData.cs         — internal record: per-property emit data
-│   ├── DefaultSource.cs        — injected attribute/enum/interface source strings
-│   ├── FlattenPrefixMode.cs    — internal enum: Parent / None / Gaped
-│   ├── RepositoryKind.cs       — internal enum: None / DynamoDb / MongoDb
-│   └── IsExternalInit.cs       — polyfill for init-only setters on netstandard2.0
-├── tests/Gener8.Tests/         — xUnit unit test suite (net10.0)
+│   ├── FromModelGenerator.cs       — IIncrementalGenerator implementation
+│   ├── SourceProducer.cs           — emits model, extensions, and repository files
+│   ├── SyntaxTransformer.cs        — Roslyn pipeline: predicate + ExtractClassTarget
+│   ├── PropertyDataBuilder.cs      — builds PropertyData list from a model symbol
+│   ├── DefaultSource.cs            — injected attribute/enum/interface source strings
+│   ├── IsExternalInit.cs           — polyfill for init-only setters on netstandard2.0
+│   ├── Compatibility/
+│   │   └── NotNullWhenAttribute.cs — polyfill for [NotNullWhen] on netstandard2.0
+│   └── Contexts/                   — immutable records for the incremental pipeline
+│       ├── TargetClass.cs          — class metadata for emit
+│       ├── ModelClass.cs           — model FullName + simple Name
+│       ├── PropertyData.cs         — per-property emit data
+│       ├── PropertyTypeData.cs     — type string, HasTypeMapping, NeedsSpreadAssignment
+│       ├── FlattenedPropertyData.cs — flatten parent info for ToModel reconstruction
+│       ├── FlattenPrefixMode.cs    — enum: Parent / None / Gaped
+│       └── RepositoryKind.cs       — enum: None / DynamoDb / MongoDb / Custom
+├── tests/Gener8.Tests/             — xUnit unit test suite (net10.0)
 │   ├── Gener8.Tests.csproj
-│   ├── GeneratorDriver.cs      — shared test helper: Run / RunUnchecked
+│   ├── GeneratorDriver.cs          — shared test helper: Run / RunUnchecked
 │   ├── FromModelGeneratorTests.cs
 │   ├── FlattenTests.cs
 │   ├── IgnorePropertiesTests.cs
@@ -31,11 +38,22 @@ Gener8.slnx
 │   ├── PropertyModifierTests.cs
 │   ├── RenamePropertyTests.cs
 │   ├── RepositoryTests.cs
-│   └── TypeMappingTests.cs
-├── tests/Gener8.DynamoDb.Integration.Tests/  — DynamoDB integration tests (net10.0, Testcontainers)
-├── tests/Gener8.MongoDb.Integration.Tests/   — MongoDB integration tests (net10.0, Testcontainers)
-├── tests/Gener8.CustomDb.Integration.Tests/  — Custom repository integration tests (net10.0, Testcontainers MsSql)
-└── samples/Gener8.Sample/      — console app that exercises the generator end-to-end
+│   ├── TypeMappingTests.cs
+│   └── UserDeclaredPropertyTests.cs
+├── tests/DynamoDb.Integration.Tests/  — DynamoDB integration tests (net10.0, Testcontainers)
+│   ├── Setup/Models/               — model + category types
+│   ├── Setup/TestFixture.cs        — Testcontainers setup
+│   └── TestProductRepository.cs   — integration test class
+├── tests/MongoDb.Integration.Tests/   — MongoDB integration tests (net10.0, Testcontainers)
+│   ├── Setup/Models/
+│   ├── Setup/TestFixture.cs
+│   └── TestProductRepository.cs
+├── tests/CustomDb.Integration.Tests/  — Custom repository integration tests (net10.0, Testcontainers MsSql)
+│   ├── Setup/Models/
+│   ├── Setup/ProductDtoRepository.cs  — consumer-supplied repository implementation
+│   ├── Setup/TestFixture.cs
+│   └── TestProductRepository.cs
+└── samples/Gener8.Sample/             — console app that exercises the generator end-to-end
     ├── Gener8.Sample.csproj
     ├── Product.cs
     ├── Repositories.cs

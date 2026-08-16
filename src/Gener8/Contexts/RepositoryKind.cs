@@ -1,4 +1,4 @@
-namespace Gener8;
+namespace Gener8.Contexts;
 
 internal enum RepositoryKind
 {

@@ -168,4 +168,70 @@ public class FlattenTests
         Assert.DoesNotContain("ShippingAddress", source);
         Assert.Contains("public string? City", source);
     }
+
+    [Fact]
+    public void FlattenToModel_NonNullableParent_ReconstructsNestedObject()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Address { public string Street { get; set; } = ""; public string City { get; set; } = ""; }
+            public class Order { public Address ShippingAddress { get; set; } = new(); }
+            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
+            public partial class OrderDto { }
+            """);
+
+        var source = results["OrderDtoExtensions.g.cs"];
+        Assert.Contains("ShippingAddress = new global::Address", source);
+        Assert.Contains("Street = dto.ShippingAddressStreet", source);
+        Assert.Contains("City = dto.ShippingAddressCity", source);
+    }
+
+    [Fact]
+    public void FlattenToModel_NullableParent_ReconstructsWithNullCheck()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            #nullable enable
+            public class Address { public string Street { get; set; } = ""; }
+            public class Order { public Address? ShippingAddress { get; set; } }
+            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
+            public partial class OrderDto { }
+            """);
+
+        var source = results["OrderDtoExtensions.g.cs"];
+        Assert.Contains("ShippingAddressStreet is null ? null : new global::Address", source);
+        Assert.Contains("Street = dto.ShippingAddressStreet", source);
+    }
+
+    [Fact]
+    public void FlattenToModel_GapedPrefix_ReconstructsNestedObject()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Address { public string Street { get; set; } = ""; }
+            public class Order { public Address ShippingAddress { get; set; } = new(); }
+            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.Gaped)]
+            public partial class OrderDto { }
+            """);
+
+        var source = results["OrderDtoExtensions.g.cs"];
+        Assert.Contains("ShippingAddress = new global::Address", source);
+        Assert.Contains("Street = dto.ShippingAddress_Street", source);
+    }
+
+    [Fact]
+    public void FlattenToModel_NonePrefix_ReconstructsNestedObject()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Address { public string City { get; set; } = ""; }
+            public class Order { public Address ShippingAddress { get; set; } = new(); }
+            [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)], FlattenPrefix = FlattenPrefix.None)]
+            public partial class OrderDto { }
+            """);
+
+        var source = results["OrderDtoExtensions.g.cs"];
+        Assert.Contains("ShippingAddress = new global::Address", source);
+        Assert.Contains("City = dto.City", source);
+    }
 }

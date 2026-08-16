@@ -1,13 +1,12 @@
 using System.Collections.Generic;
 
-namespace Gener8;
+namespace Gener8.Contexts;
 
-internal sealed record ClassTarget(
+internal sealed record TargetClass(
     string ClassName,
     string? Namespace,
     string Accessibility,
     IReadOnlyCollection<PropertyData> Properties,
-    string ModelFullName,   // global::-prefixed fully qualified model type name
-    string ModelName,
+    ModelClass Model,
     RepositoryKind Repository
     );

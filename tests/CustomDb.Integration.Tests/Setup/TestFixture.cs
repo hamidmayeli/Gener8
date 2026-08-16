@@ -77,7 +77,9 @@ public class TestFixture : IAsyncLifetime
                         Id UNIQUEIDENTIFIER PRIMARY KEY,
                         Name NVARCHAR(100) NOT NULL,
                         Description NVARCHAR(255) NULL,
-                        CategoryName NVARCHAR(100) NULL
+                        CategoryName NVARCHAR(100) NULL,
+                        CategoryDescription NVARCHAR(255) NULL,
+                        Sizes NVARCHAR(100) NOT NULL
                     );";
 
                 await command.ExecuteNonQueryAsync();

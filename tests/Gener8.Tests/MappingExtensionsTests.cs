@@ -185,7 +185,7 @@ public class MappingExtensionsTests
     }
 
     [Fact]
-    public void FlattenedPropertiesAreInToDtoButNotToModel()
+    public void FlattenedPropertiesAreInToDtoAndReconstructedInToModel()
     {
         var results = GeneratorDriver.Run("""
             using Gener8;
@@ -198,8 +198,9 @@ public class MappingExtensionsTests
         var source = results["OrderDtoExtensions.g.cs"];
         // ToDto includes flattened via path
         Assert.Contains("ShippingAddressStreet = model.ShippingAddress.Street,", source);
-        // ToModel skips flattened
-        Assert.DoesNotContain("ShippingAddress = ", source);
+        // ToModel reconstructs the nested object
+        Assert.Contains("ShippingAddress = new global::Address", source);
+        Assert.Contains("Street = dto.ShippingAddressStreet", source);
         // Non-flattened still mapped in both
         Assert.Contains("Ref = dto.Ref,", source);
         Assert.Contains("Ref = model.Ref,", source);
