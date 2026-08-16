@@ -66,9 +66,9 @@ For each class that passes the filter, the generator accesses the semantic model
 2. **Find `[FromModel]`** — locates the attribute and reads the `typeof()` argument to get the model type symbol.
 3. **Extract configuration** — reads `Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited` from the attribute; reads `[TypeMapping]` and `[RenameProperty]` attributes from the class.
 4. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties. A `HashSet<string>` tracks already-seen names to handle overrides when `IncludeInherited = true`. Traversal stops at `System.Object`.
-5. **Build `PropertyData` records** — for each property that is not ignored or flattened, calls `BuildPropertyData` which resolves the type display string, applies any type mapping, applies any rename, and reads getter/setter/init/required/initializer flags.
-6. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level property on the DTO.
-7. **Returns a `ClassTarget` record** — an immutable snapshot of everything the `Emit` stage needs.
+5. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags.
+6. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record (carrying the parent name, fully-qualified parent type, and nested property name needed for `ToModel` reconstruction).
+7. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs.
 
 ### Stage 4 — Code generation (`Emit`)
 
@@ -104,7 +104,7 @@ Takes a `ClassTarget` and writes up to three `StringBuilder`-based C# source fil
 [}]
 ```
 
-Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Prop.ToDto()`), with `?.` for nullable types. Flattened properties appear in `ToDto` via their `FlattenedReadPath` and are skipped in `ToModel`. Renamed properties use `ModelPropertyName` on the model side.
+Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Prop.ToDto()`), with `?.` for nullable types. Flattened properties appear in `ToDto` via their `ReadPath`. In `ToModel`, flattened properties are grouped by parent and the nested object is reconstructed inline (`Parent = new ParentType { Nested = dto.FlatProp, ... }`); nullable parents get a null-safe ternary (`dto.FlatProp is null ? null : new ParentType { ... }`). Renamed properties use `ModelPropertyName` on the model side. DynamoDB/MongoDB abstract collection properties use collection spread (`[.. model.Prop]`) in `ToDto`.
 
 **`EmitRepository`** (only when `target.Repository != RepositoryKind.None`) writes a concrete repository class (`{ClassName}Repository.g.cs`):
 
@@ -133,46 +133,63 @@ The hint name for each file is `{Namespace}.{ClassName}[Extensions|Repository].g
 
 ## Internal types
 
-### `ClassTarget`
+All records live under the `Gener8.Contexts` namespace and use value-equality semantics for Roslyn incremental caching.
 
-An internal `record` that carries the data `Emit` needs:
+### `TargetClass`
+
+Carries everything `Emit` needs for one DTO:
 
 ```csharp
-record ClassTarget(
+record TargetClass(
     string ClassName,
     string? Namespace,
     string Accessibility,
     IReadOnlyCollection<PropertyData> Properties,
-    string ModelFullName,    // global::-prefixed fully-qualified model type name
+    ModelClass Model,
     RepositoryKind Repository);
+
+record ModelClass(
+    string FullName,    // global::-prefixed fully-qualified name
+    string Name);       // simple class name, used for the repository class name
 ```
 
-`RepositoryKind` is an internal enum (`None`, `DynamoDb`, `MongoDb`) — a mirror of the injected `RepositoryType` enum that avoids a dependency on the generated attribute source.
+`RepositoryKind` is an internal enum (`None`, `DynamoDb`, `MongoDb`, `Custom`) — a mirror of the injected `RepositoryType` enum that avoids a dependency on the generated attribute source.
 
 ### `PropertyData`
 
-An internal `record` holding per-property code generation data:
+Per-property code-generation data, composed of two sub-records:
 
 ```csharp
 record PropertyData(
-    string Type,
+    PropertyTypeData TypeData,
     string Name,
     bool HasGetter,
     bool HasSetter,
     bool IsInitOnly,
     bool IsRequired,
     string? Initializer,
-    string? ModelPropertyName,   // original model name when [RenameProperty] was applied
-    string? FlattenedReadPath,   // model-side read path for flattened props (e.g. "Address?.Street")
-    bool HasTypeMapping,         // true when the property type was remapped via [TypeMapping]
-    bool IsUserDeclared);        // true when the DTO already declares this property; skip in EmitModel, keep in mappings
+    string? ModelPropertyName,  // original model name when [RenameProperty] was applied; null = same as Name
+    bool IsUserDeclared,        // true when the DTO already declares this property; skip in EmitModel, keep in mappings
+    FlattenedPropertyData? Flattened);  // non-null only for properties introduced via Flatten
+
+record PropertyTypeData(
+    string Type,
+    bool HasTypeMapping,        // true when the type was remapped via [TypeMapping]
+    bool NeedsSpreadAssignment); // true when an abstract collection was remapped to List<T> (DynamoDB/MongoDB)
+
+record FlattenedPropertyData(
+    string ReadPath,            // model-side read expression, e.g. "Address?.Street"
+    string ParentName,          // parent property name, e.g. "ShippingAddress"
+    string ParentTypeFullName,  // global::-prefixed parent type for 'new ParentType { }' in ToModel
+    string NestedPropertyName,  // property name on the nested type, e.g. "Street"
+    bool OriginallyNullable);   // true when nested type was nullable before parent nullability was applied
 ```
 
 ---
 
 ## Incremental caching
 
-Because the transform returns immutable records with value-equality semantics (C# `record` types), Roslyn can cache results between compilations. If a source file that contributed a `ClassTarget` has not changed, the cached record is reused and `Emit` is not re-invoked — only the changed inputs flow through the pipeline.
+Because the transform returns immutable records with value-equality semantics (C# `record` types), Roslyn can cache results between compilations. If a source file that contributed a `TargetClass` has not changed, the cached record is reused and `Emit` is not re-invoked — only the changed inputs flow through the pipeline.
 
 ---
 

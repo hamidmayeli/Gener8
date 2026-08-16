@@ -205,14 +205,17 @@ internal partial class ProductDto { }
 // ToDto:    Sku = model.InternalSku,
 ```
 
-**With `Flatten`** — flattened properties appear in `ToDto` only (read via the nested path); they are omitted from `ToModel` because a flattened value cannot reconstruct the nested object:
+**With `Flatten`** — flattened properties appear in `ToDto` via their nested path; `ToModel` reconstructs the nested parent object inline from the spread DTO properties:
 
 ```csharp
 [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
 internal partial class OrderDto { }
 
-// ToDto includes: ShippingAddressStreet = model.ShippingAddress.Street,
-// ToModel skips all flattened properties
+// ToDto  includes: ShippingAddressStreet = model.ShippingAddress.Street,
+// ToModel reconstructs:
+//   ShippingAddress = new global::Address { Street = dto.ShippingAddressStreet, ... },
+// For nullable parents (Address?):
+//   ShippingAddress = dto.ShippingAddressStreet is null ? null : new global::Address { Street = dto.ShippingAddressStreet!, ... },
 ```
 
 ---
