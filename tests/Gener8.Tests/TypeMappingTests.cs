@@ -54,13 +54,16 @@ public class TypeMappingTests
     [Fact]
     public void UnmappedTypesArePreserved()
     {
+        // Tag lives in a different namespace so it is NOT in the qualifying namespace and
+        // must be preserved as the raw type (no auto-mapping). Address is in global namespace
+        // (same as Order) but is covered by an explicit [TypeMapping].
         var results = GeneratorDriver.Run("""
             using Gener8;
+            namespace External { public class Tag { public string Label { get; set; } = ""; } }
             public class Address { public string Street { get; set; } = ""; }
             [FromModel(typeof(Address))]
             public partial class AddressDto { }
-            public class Tag { public string Label { get; set; } = ""; }
-            public class Order { public Address ShippingAddress { get; set; } = new(); public Tag Category { get; set; } = new(); }
+            public class Order { public Address ShippingAddress { get; set; } = new(); public External.Tag Category { get; set; } = new(); }
             [FromModel(typeof(Order))]
             [TypeMapping(typeof(Address), typeof(AddressDto))]
             public partial class OrderDto { }
@@ -68,7 +71,31 @@ public class TypeMappingTests
 
         var source = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
         Assert.Contains("public AddressDto ShippingAddress", source);
-        Assert.Contains("public Tag Category", source);
+        Assert.Contains("public External.Tag Category", source);
+    }
+
+    [Theory]
+    [InlineData("List")]
+    [InlineData("IList")]
+    public void MapsSupportedGenericCollectionElementTypeToDto(string collectionType)
+    {
+        var results = GeneratorDriver.Run($$"""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Address { public string Street { get; set; } = ""; }
+
+            [FromModel(typeof(Address))]
+            public partial class AddressDto { }
+            public class Order { public {{collectionType}}<Address> ShippingAddresses { get; set; } = []; }
+
+            [FromModel(typeof(Order))]
+            [TypeMapping(typeof(Address), typeof(AddressDto))]
+            public partial class OrderDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
+        Assert.Contains($"public System.Collections.Generic.{collectionType}<AddressDto> ShippingAddresses", source);
+        Assert.DoesNotContain($"public System.Collections.Generic.{collectionType}<Address> ShippingAddresses", source);
     }
 
     [Fact]

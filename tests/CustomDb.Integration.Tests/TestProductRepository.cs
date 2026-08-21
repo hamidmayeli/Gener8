@@ -1,4 +1,5 @@
 ﻿using CustomDb.Integration.Tests.Setup;
+using CustomDb.Integration.Tests.Setup.Models;
 using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 

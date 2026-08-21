@@ -2,6 +2,7 @@
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Runtime;
+using DynamoDb.Integration.Tests.Setup.Models;
 using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.DynamoDb;

@@ -1,4 +1,5 @@
-﻿using Gener8;
+﻿using CustomDb.Integration.Tests.Setup.Models;
+using Gener8;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;

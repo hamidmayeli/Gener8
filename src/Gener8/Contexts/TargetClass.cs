@@ -8,5 +8,6 @@ internal sealed record TargetClass(
     string Accessibility,
     IReadOnlyCollection<PropertyData> Properties,
     ModelClass Model,
-    RepositoryKind Repository
+    RepositoryKind Repository,
+    IReadOnlyCollection<TargetClass> AutoDtoTargets
     );

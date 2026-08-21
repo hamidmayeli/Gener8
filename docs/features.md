@@ -279,6 +279,17 @@ internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product,
 
 The constructor accepts an `IDynamoDbRepositoryContext` (which wraps `IDynamoDBContext`) and delegates all CRUD operations to the `DynamoDbRepository<TModel, TDto>` base class. The base also implements `ICompositeKeyRepository<TModel>`, which extends `IRepository<TModel>` with two-key `GetByIdAsync` and `DeleteByIdAsync` overloads.
 
+**Enum property annotations** — the DynamoDB SDK cannot serialize/deserialize enums by default. When `Repository = RepositoryType.DynamoDb`, the generator automatically annotates every enum property with an appropriate `[DynamoDBProperty]` converter:
+
+| Property type | Emitted annotation |
+|---|---|
+| `TEnum` | `[DynamoDBProperty(typeof(EnumToStringConverter<TEnum>))]` |
+| `TEnum?` | `[DynamoDBProperty(typeof(NullableEnumToStringConverter<TEnum>))]` |
+| `IList<TEnum>` | `[DynamoDBProperty(typeof(EnumListToStringListConverter<TEnum>))]` |
+| `IList<TEnum?>` | `[DynamoDBProperty(typeof(NullableEnumListToStringListConverter<TEnum>))]` |
+
+The converter classes are emitted alongside the DynamoDB base class, so no extra package is required beyond `AWSSDK.DynamoDBv2`.
+
 Requires the `AWSSDK.DynamoDBv2` NuGet package.
 
 ### MongoDB
@@ -303,6 +314,8 @@ internal partial class ProductDtoRepository : Gener8.MongoDbRepository<Product, 
 ```
 
 The constructor accepts an `IMongoDbRepositoryContext` (which wraps `IMongoDatabase`) and uses the DTO class name as the collection name. The base class implements `IRepository<TModel>` and resolves the `IMongoCollection<TDto>` internally.
+
+**Enum property annotations** — when `Repository = RepositoryType.MongoDb`, every enum property is automatically annotated with `[BsonRepresentation(BsonType.String)]` so values are stored as strings rather than integers in MongoDB.
 
 Requires the `MongoDB.Driver` NuGet package.
 

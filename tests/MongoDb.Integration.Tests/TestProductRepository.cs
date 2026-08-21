@@ -1,6 +1,7 @@
 ﻿using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDb.Integration.Tests.Setup;
+using MongoDb.Integration.Tests.Setup.Models;
 
 namespace MongoDb.Integration.Tests;
 
@@ -16,9 +17,13 @@ public class TestProductRepository(TestFixture fixture) : IClassFixture<TestFixt
         {
             Id = Guid.NewGuid(),
             Name = "Test Product",
-            Category = new() { Name = "Test Category" },
+            Category = new() { Name = "Test Category", Group = CategoryGroup.Primary },
             Description = "Test Description",
             Sizes = [1, 2, 3],
+            Categories = [
+                new() { Name = "Category 1", Group = CategoryGroup.Secondary },
+                new() { Name = "Category 2", Group = CategoryGroup.Secondary },
+            ],
         };
         await Repository.SaveAsync(product, TestContext.Current.CancellationToken);
 

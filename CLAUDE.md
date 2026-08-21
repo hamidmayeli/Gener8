@@ -17,7 +17,7 @@ src/Gener8/
     ├── TargetClass.cs       — record: ClassName, Namespace, Accessibility, Properties, Model, Repository
     ├── ModelClass.cs        — record: FullName, Name
     ├── PropertyData.cs      — record: TypeData, Name, accessors, ModelPropertyName, IsUserDeclared, Flattened
-    ├── PropertyTypeData.cs  — record: Type, HasTypeMapping, NeedsSpreadAssignment
+    ├── PropertyTypeData.cs  — record: Type, HasTypeMapping, HasGenericTypeMapping, NeedsSpreadAssignment, IsEnum, IsNullable, EnumCollectionElementType
     ├── FlattenedPropertyData.cs — record: ReadPath, ParentName, ParentTypeFullName, NestedPropertyName, OriginallyNullable
     ├── FlattenPrefixMode.cs — internal enum: Parent, None, Gaped
     └── RepositoryKind.cs    — internal enum: None, DynamoDb, MongoDb, Custom
@@ -61,7 +61,9 @@ internal partial class TheDto {}
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path); `ToModel` reconstructs the nested parent object from the spread DTO properties (null-safe ternary for nullable parents)
 - Flattened + type-mapped properties are skipped in both extension methods (cannot chain through a flattened path)
-- DynamoDB/MongoDB abstract collection interfaces (`IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `IEnumerable<T>`, `IList<T>`, `ICollection<T>`) are automatically remapped to `List<T>` in the DTO; `ToDto` uses collection spread `[.. model.Prop]`
+- DynamoDB/MongoDB abstract collection interfaces (`IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `IEnumerable<T>`, `IList<T>`, `ICollection<T>`) and arrays (`T[]`) are automatically remapped to `List<T>` in the DTO; `ToDto` uses collection spread `[.. model.Prop]`
+- DynamoDB: `enum` properties automatically get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]`; nullable enum (`T?`) gets `NullableEnumToStringConverter<T>`; `IList<TEnum>` / `IList<TEnum?>` gets `EnumListToStringListConverter<T>` / `NullableEnumListToStringListConverter<T>`
+- MongoDB: `enum` properties automatically get `[BsonRepresentation(BsonType.String)]`
 - `Repository = RepositoryType.DynamoDb|MongoDb|Custom` — generates a concrete `{ClassName}Repository` class (partial, matching DTO accessibility); `DynamoDb` inherits `Gener8.DynamoDbRepository<TModel, TDto>` and takes `IDynamoDbRepositoryContext` (wraps `IDynamoDBContext`); `MongoDb` inherits `Gener8.MongoDbRepository<TModel, TDto>` and takes `IMongoDbRepositoryContext` (wraps `IMongoDatabase`); `Custom` inherits `Gener8.RepositoryBase<TModel, TDto>` (declared `partial`) and takes `IRepositoryContext` (empty interface — consumer provides implementation); context interfaces and base classes are emitted conditionally (once per kind per compilation); SDK base classes override `ToModel`/`ToDto` via generated extension methods; consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` for DynamoDb/MongoDb respectively
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
 
