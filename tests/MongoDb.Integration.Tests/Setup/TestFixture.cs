@@ -1,5 +1,6 @@
 ﻿using Gener8;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDb.Integration.Tests.Setup.Models;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;

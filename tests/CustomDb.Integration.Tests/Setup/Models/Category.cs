@@ -1,5 +1,6 @@
 ﻿using Gener8;
-namespace CustomDb.Integration.Tests.Setup;
+
+namespace CustomDb.Integration.Tests.Setup.Models;
 
 public class Category
 {

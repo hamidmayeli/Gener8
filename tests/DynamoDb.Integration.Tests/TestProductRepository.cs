@@ -1,4 +1,5 @@
 ﻿using DynamoDb.Integration.Tests.Setup;
+using DynamoDb.Integration.Tests.Setup.Models;
 using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 

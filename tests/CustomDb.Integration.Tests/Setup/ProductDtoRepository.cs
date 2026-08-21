@@ -1,6 +1,6 @@
 ﻿using Microsoft.Data.SqlClient;
 
-namespace CustomDb.Integration.Tests.Setup;
+namespace CustomDb.Integration.Tests.Setup.Models;
 
 public partial class ProductRepository
 {

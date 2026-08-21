@@ -1,6 +1,6 @@
 ﻿using Gener8;
 
-namespace MongoDb.Integration.Tests.Setup;
+namespace MongoDb.Integration.Tests.Setup.Models;
 
 public class Category
 {

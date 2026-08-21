@@ -2,7 +2,7 @@
 using Amazon.DynamoDBv2.DataModel;
 using Gener8;
 
-namespace DynamoDb.Integration.Tests.Setup;
+namespace DynamoDb.Integration.Tests.Setup.Models;
 
 public class Product
 {

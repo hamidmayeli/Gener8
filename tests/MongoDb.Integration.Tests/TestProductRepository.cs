@@ -1,6 +1,7 @@
 ﻿using Gener8;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDb.Integration.Tests.Setup;
+using MongoDb.Integration.Tests.Setup.Models;
 
 namespace MongoDb.Integration.Tests;
 

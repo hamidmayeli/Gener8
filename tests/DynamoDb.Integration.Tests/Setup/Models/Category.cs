@@ -1,7 +1,6 @@
 ﻿using Gener8;
-using System.Text.RegularExpressions;
 
-namespace DynamoDb.Integration.Tests.Setup;
+namespace DynamoDb.Integration.Tests.Setup.Models;
 
 public class Category
 {

@@ -1,7 +1,7 @@
 ﻿using Gener8;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace MongoDb.Integration.Tests.Setup;
+namespace MongoDb.Integration.Tests.Setup.Models;
 
 public class Product
 {
