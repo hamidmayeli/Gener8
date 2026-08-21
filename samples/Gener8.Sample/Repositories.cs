@@ -3,9 +3,17 @@ using MongoDB.Driver;
 
 namespace Gener8.Sample
 {
+    public enum TheEnum
+    {
+        Value1,
+        Value2,
+    }
+
     public class DynamoDbContent
     {
         public string? Key { get; set; }
+        public TheEnum EnumValue { get; set; }
+        public TheEnum? NullabeEnumValue { get; set; }
     }
 
     [FromModel(typeof(DynamoDbContent), Repository = RepositoryType.DynamoDb)]
@@ -14,6 +22,7 @@ namespace Gener8.Sample
     public class MongoDbContent
     {
         public string? Key { get; set; }
+        public TheEnum EnumValue { get; set; }
     }
 
     [FromModel(typeof(MongoDbContent), Repository = RepositoryType.MongoDb)]

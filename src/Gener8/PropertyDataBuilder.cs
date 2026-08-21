@@ -163,6 +163,7 @@ internal sealed class PropertyDataBuilder(
         var hasGenericTypeMapping = false;
         string? mappedCollectionElementType = null;
         var typeDisplay = hasDirectTypeMapping ? mappedType! : originalType;
+        var isNullable = isParentNullable || property.NullableAnnotation == NullableAnnotation.Annotated;
 
         if (!hasDirectTypeMapping && TryGetMappedCollectionType(property.Type, typeMappings, out var collectionTypeMapping))
         {
@@ -179,7 +180,6 @@ internal sealed class PropertyDataBuilder(
         var needsSpreadAssignment = false;
         if (!hasDirectTypeMapping && (repositoryKind == RepositoryKind.DynamoDb))
         {
-            var isNullable = typeDisplay.EndsWith("?");
             if (TryRemapToConcreteCollection(property.Type, mappedCollectionElementType, out var baseRemapped))
             {
                 typeDisplay = isNullable ? baseRemapped + "?" : baseRemapped;
@@ -187,7 +187,29 @@ internal sealed class PropertyDataBuilder(
             }
         }
 
-        return new(typeDisplay, hasDirectTypeMapping || hasGenericTypeMapping, hasGenericTypeMapping, needsSpreadAssignment);
+        return new(
+            typeDisplay,
+            hasDirectTypeMapping || hasGenericTypeMapping,
+            hasGenericTypeMapping,
+            needsSpreadAssignment,
+            IsEnumType(property),
+            isNullable);
+    }
+
+    private static bool IsEnumType(IPropertySymbol property)
+    {
+        if(property.NullableAnnotation != NullableAnnotation.Annotated)
+            return property.Type.TypeKind == TypeKind.Enum;
+
+        if (property.Type is INamedTypeSymbol namedType
+            && namedType.IsGenericType
+            && namedType.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T)
+        {
+            var underlyingType = namedType.TypeArguments[0];
+            return underlyingType.TypeKind == TypeKind.Enum;
+        }
+
+        return false;
     }
 
     private readonly record struct CollectionTypeMapping(string TypeDisplay, string ElementTypeDisplay);

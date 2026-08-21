@@ -46,6 +46,28 @@ public class RepositoryTests
     }
 
     [Fact]
+    public void EmitsNullableEnumStringConverter()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains("NullableEnumToStringConverter.g.cs", results.Keys);
+    }
+
+    [Fact]
+    public void EmitsEnumStringConverter()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains("EnumToStringConverter.g.cs", results.Keys);
+    }
+
+    [Fact]
     public void DynamoDbRepositoryHasCorrectClassName()
     {
         var results = GeneratorDriver.RunUnchecked(ProductModel + """
@@ -121,6 +143,22 @@ public class RepositoryTests
 
         var source = results["ProductRepository.g.cs"];
         Assert.Contains("public partial class ProductRepository", source);
+    }
+
+    [Theory]
+    [InlineData("CategoryEnum", "EnumToStringConverter")]
+    [InlineData("CategoryEnum?", "NullableEnumToStringConverter")]
+    public void EnumPropertyHasCorrectConverterInDynamoDb(string propertyType, string converterType)
+    {
+        var results = GeneratorDriver.RunUnchecked($$"""
+            using Gener8;
+            public enum CategoryEnum { A, B, C }
+            public class Product { public {{propertyType}} Category { get; set; } }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains($"[DynamoDBProperty(typeof({converterType}<CategoryEnum>))]", source);
     }
 
     [Fact]
@@ -253,6 +291,20 @@ public class RepositoryTests
 
         var mongo = results.Keys.Where(k => k == "MongoDbRepository.g.cs").ToList();
         Assert.Single(mongo);
+    }
+
+    [Fact]
+    public void EnumPropertyHasCorrectConverterInMongoDb()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            public enum CategoryEnum { A, B, C }
+            public class Product { public CategoryEnum Category { get; set; } }
+            [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains("[BsonRepresentation(BsonType.String)]", source);
     }
 
     [Fact]
