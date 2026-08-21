@@ -145,6 +145,26 @@ public class MappingExtensionsTests
     }
 
     [Fact]
+    public void TypeMappedGenericCollectionProjectsElementsInBothDirections()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Address { public string Street { get; set; } = ""; }
+            [FromModel(typeof(Address))]
+            public partial class AddressDto { }
+            public class Order { public List<Address> ShippingAddresses { get; set; } = []; }
+            [FromModel(typeof(Order))]
+            [TypeMapping(typeof(Address), typeof(AddressDto))]
+            public partial class OrderDto { }
+            """);
+
+        var source = results["OrderDtoExtensions.g.cs"];
+        Assert.Contains("ShippingAddresses = [.. dto.ShippingAddresses.Select(m => m.ToModel())],", source);
+        Assert.Contains("ShippingAddresses = [.. model.ShippingAddresses.Select(m => m.ToDto())],", source);
+    }
+
+    [Fact]
     public void TypeMappedPropertyNonMappedPropertiesStillAppear()
     {
         var results = GeneratorDriver.Run("""

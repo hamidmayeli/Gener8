@@ -11,10 +11,12 @@ public class Product
     public string? Description { get; set; }
     public Category? Category { get; set; }
     public required IReadOnlyCollection<int> Sizes { get; set; }
+    public IReadOnlyCollection<Category>? Categories { get; set; }
 }
 
 [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
 [DynamoDBTable("Products")]
+[TypeMapping(typeof(Category), typeof(CategoryDto))]
 public partial class ProductDto
 {
     [DynamoDBHashKey]

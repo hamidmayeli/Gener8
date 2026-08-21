@@ -63,6 +63,8 @@ internal static class GeneratorDriver
         {
             MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
             MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+            MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
         };
 
         return CSharpCompilation.Create(

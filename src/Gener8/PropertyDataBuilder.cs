@@ -159,8 +159,17 @@ internal sealed class PropertyDataBuilder(
         )
     {
         var originalType = property.Type.ToDisplayString();
-        var hasTypeMapping = typeMappings.ContainsKey(originalType);
-        var typeDisplay = hasTypeMapping ? typeMappings[originalType] : originalType;
+        var hasDirectTypeMapping = typeMappings.TryGetValue(originalType, out var mappedType);
+        var hasGenericTypeMapping = false;
+        string? mappedCollectionElementType = null;
+        var typeDisplay = hasDirectTypeMapping ? mappedType! : originalType;
+
+        if (!hasDirectTypeMapping && TryGetMappedCollectionType(property.Type, typeMappings, out var collectionTypeMapping))
+        {
+            typeDisplay = collectionTypeMapping.Value.TypeDisplay;
+            mappedCollectionElementType = collectionTypeMapping.Value.ElementTypeDisplay;
+            hasGenericTypeMapping = true;
+        }
 
         if (isParentNullable && !typeDisplay.EndsWith("?"))
             typeDisplay += "?";
@@ -168,17 +177,75 @@ internal sealed class PropertyDataBuilder(
         // For DynamoDB, remap abstract collection interfaces to List<T> so the SDK
         // can instantiate them. Only applies when there is no explicit TypeMapping override.
         var needsSpreadAssignment = false;
-        if (!hasTypeMapping && (repositoryKind == RepositoryKind.DynamoDb))
+        if (!hasDirectTypeMapping && (repositoryKind == RepositoryKind.DynamoDb))
         {
             var isNullable = typeDisplay.EndsWith("?");
-            if (TryRemapToConcreteCollection(property.Type, out var baseRemapped))
+            if (TryRemapToConcreteCollection(property.Type, mappedCollectionElementType, out var baseRemapped))
             {
                 typeDisplay = isNullable ? baseRemapped + "?" : baseRemapped;
                 needsSpreadAssignment = true;
             }
         }
 
-        return new(typeDisplay, hasTypeMapping, needsSpreadAssignment);
+        return new(typeDisplay, hasDirectTypeMapping || hasGenericTypeMapping, hasGenericTypeMapping, needsSpreadAssignment);
+    }
+
+    private readonly record struct CollectionTypeMapping(string TypeDisplay, string ElementTypeDisplay);
+
+    private static bool TryGetMappedCollectionType(
+        ITypeSymbol type,
+        Dictionary<string, string> typeMappings,
+        [NotNullWhen(true)] out CollectionTypeMapping? collectionTypeMapping)
+    {
+        collectionTypeMapping = null;
+
+        if (type is not INamedTypeSymbol { IsGenericType: true, Arity: 1 } namedType)
+            return false;
+
+        if (!IsSupportedMappedCollection(namedType))
+            return false;
+
+        if (!TryGetMappedCollectionElementType(namedType.TypeArguments[0], typeMappings, out var mappedElementType))
+            return false;
+
+        collectionTypeMapping = new(BuildGenericTypeDisplay(namedType, mappedElementType), mappedElementType);
+        return true;
+    }
+
+    private static bool TryGetMappedCollectionElementType(
+        ITypeSymbol type,
+        Dictionary<string, string> typeMappings,
+        [NotNullWhen(true)] out string? mappedElementType)
+    {
+        var originalType = type.ToDisplayString();
+        if (typeMappings.TryGetValue(originalType, out mappedElementType))
+            return true;
+
+        if (TryGetMappedCollectionType(type, typeMappings, out var nestedCollectionType))
+        {
+            mappedElementType = nestedCollectionType.Value.TypeDisplay;
+            return true;
+        }
+
+        mappedElementType = null;
+        return false;
+    }
+
+    private static bool IsSupportedMappedCollection(INamedTypeSymbol namedType)
+        => namedType.ConstructedFrom.ToDisplayString() is
+            "System.Collections.Generic.List<T>" or
+            "System.Collections.Generic.IEnumerable<T>" or
+            "System.Collections.Generic.ICollection<T>" or
+            "System.Collections.Generic.IList<T>" or
+            "System.Collections.Generic.IReadOnlyCollection<T>" or
+            "System.Collections.Generic.IReadOnlyList<T>";
+
+    private static string BuildGenericTypeDisplay(INamedTypeSymbol namedType, string mappedElementType)
+    {
+        var constructedFromDisplay = namedType.ConstructedFrom.ToDisplayString();
+        var genericTypeName = constructedFromDisplay.Substring(0, constructedFromDisplay.IndexOf('<'));
+        var nullableSuffix = namedType.NullableAnnotation == NullableAnnotation.Annotated ? "?" : string.Empty;
+        return $"{genericTypeName}<{mappedElementType}>{nullableSuffix}";
     }
 
     private static FlattenedPropertyData? GetFlattenedData(
@@ -206,7 +273,10 @@ internal sealed class PropertyDataBuilder(
     // Remaps IReadOnlyCollection<T>, IReadOnlyList<T>, IEnumerable<T>, IList<T>, ICollection<T>
     // to System.Collections.Generic.List<T>. Returns true and sets baseRemapped (without any
     // trailing '?') when a remapping is warranted; caller handles nullability.
-    private static bool TryRemapToConcreteCollection(ITypeSymbol type, [NotNullWhen(true)] out string? baseRemapped)
+    private static bool TryRemapToConcreteCollection(
+        ITypeSymbol type,
+        string? mappedElementType,
+        [NotNullWhen(true)] out string? baseRemapped)
     {
         baseRemapped = null;
 
@@ -223,7 +293,7 @@ internal sealed class PropertyDataBuilder(
 
         if (!isCollectionInterface) return false;
 
-        var typeArg = namedType.TypeArguments[0].ToDisplayString();
+        var typeArg = mappedElementType ?? namedType.TypeArguments[0].ToDisplayString();
         baseRemapped = $"System.Collections.Generic.List<{typeArg}>";
         return true;
     }

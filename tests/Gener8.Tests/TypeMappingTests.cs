@@ -71,6 +71,30 @@ public class TypeMappingTests
         Assert.Contains("public Tag Category", source);
     }
 
+    [Theory]
+    [InlineData("List")]
+    [InlineData("IList")]
+    public void MapsSupportedGenericCollectionElementTypeToDto(string collectionType)
+    {
+        var results = GeneratorDriver.Run($$"""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Address { public string Street { get; set; } = ""; }
+
+            [FromModel(typeof(Address))]
+            public partial class AddressDto { }
+            public class Order { public {{collectionType}}<Address> ShippingAddresses { get; set; } = []; }
+
+            [FromModel(typeof(Order))]
+            [TypeMapping(typeof(Address), typeof(AddressDto))]
+            public partial class OrderDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
+        Assert.Contains($"public System.Collections.Generic.{collectionType}<AddressDto> ShippingAddresses", source);
+        Assert.DoesNotContain($"public System.Collections.Generic.{collectionType}<Address> ShippingAddresses", source);
+    }
+
     [Fact]
     public void EmitsTypeMappingAttributeSourceFile()
     {
