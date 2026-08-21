@@ -176,10 +176,17 @@ internal partial class ProductDto { }
 // Generated ProductDtoExtensions:
 // internal static class ProductDtoExtensions
 // {
-//     public static Product ToModel(this ProductDto dto) => new Product { Name = dto.Name, Price = dto.Price };
-//     public static ProductDto ToDto(this Product model) => new ProductDto { Name = model.Name, Price = model.Price };
+//     [return: NotNullIfNotNull(nameof(dto))]
+//     public static Product? ToModel(this ProductDto? dto)
+//         => dto is null ? null : new Product { Name = dto.Name, Price = dto.Price };
+//
+//     [return: NotNullIfNotNull(nameof(model))]
+//     public static ProductDto? ToDto(this Product? model)
+//         => model is null ? null : new ProductDto { Name = model.Name, Price = model.Price };
 // }
 ```
+
+Both methods accept and return nullable types. `[return: NotNullIfNotNull]` lets the compiler prove the return is non-null whenever the input is non-null, so callers with non-null references need no null-check.
 
 The extension class accessibility mirrors the DTO: `public` DTOs get `public` extensions, everything else gets `internal`.
 

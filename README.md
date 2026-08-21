@@ -113,8 +113,10 @@ internal partial class ProductDto { }
 // Generated automatically:
 // internal static class ProductDtoExtensions
 // {
-//     public static Product    ToModel(this ProductDto dto)    { ... }
-//     public static ProductDto ToDto  (this Product    model)  { ... }
+//     [return: NotNullIfNotNull(nameof(dto))]
+//     public static Product?    ToModel(this ProductDto? dto)    => dto is null ? null : new Product { ... };
+//     [return: NotNullIfNotNull(nameof(model))]
+//     public static ProductDto? ToDto  (this Product?    model)  => model is null ? null : new ProductDto { ... };
 // }
 
 // Usage:

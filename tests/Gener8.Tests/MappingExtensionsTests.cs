@@ -26,7 +26,7 @@ public class MappingExtensionsTests
             """);
 
         var source = results["ProductDtoExtensions.g.cs"];
-        Assert.Contains("ToModel(this ProductDto dto)", source);
+        Assert.Contains("ToModel(this ProductDto? dto)", source);
         Assert.Contains("ToDto(this", source);
         Assert.Contains("Product", source);
     }
@@ -299,5 +299,25 @@ public class MappingExtensionsTests
         var source = results["ProductDtoExtensions.g.cs"];
         Assert.Contains("Name = dto.Name,", source);
         Assert.Contains("Name = model.Name,", source);
+    }
+
+    [Fact]
+    public void ExtensionMethodsAreNullSafe()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Product { public string Name { get; set; } = ""; }
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDtoExtensions.g.cs"];
+        Assert.Contains("[return: NotNullIfNotNull(nameof(dto))]", source);
+        Assert.Contains("[return: NotNullIfNotNull(nameof(model))]", source);
+        Assert.Contains("dto is null ? null", source);
+        Assert.Contains("model is null ? null", source);
+        Assert.Contains("ProductDto? dto", source);
+        Assert.Contains("? ToModel(", source);
+        Assert.Contains("? ToDto(", source);
     }
 }

@@ -46,8 +46,13 @@ internal partial class TheDto {}
 // Generator emits TheDtoExtensions.g.cs:
 // internal static class TheDtoExtensions
 // {
-//     public static TheModel ToModel(this TheDto dto) => new TheModel { Name = dto.Name };
-//     public static TheDto   ToDto(this TheModel model) => new TheDto { Name = model.Name };
+//     [return: NotNullIfNotNull(nameof(dto))]
+//     public static TheModel? ToModel(this TheDto? dto)
+//         => dto is null ? null : new TheModel { Name = dto.Name };
+//
+//     [return: NotNullIfNotNull(nameof(model))]
+//     public static TheDto? ToDto(this TheModel? model)
+//         => model is null ? null : new TheDto { Name = model.Name };
 // }
 ```
 
