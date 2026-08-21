@@ -8,7 +8,7 @@ Console.WriteLine($"{dto.Name} — £{dto.Price} — {(dto.InStock ? "in stock" 
 
 var orderDto = new Order
 {
-    Customer = new Customer { Name = "John Doe" },
+    Customer = new Customer { Name = "John Doe", Type = CustomerType.Gold },
     Id = 123,
     ShippingAddress = new()
     {

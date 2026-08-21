@@ -47,13 +47,26 @@ internal static class SourceProducer
         {
             if (prop.IsUserDeclared) continue;
 
-            if (prop.TypeData.IsEnum)
+            if (prop.TypeData.IsEnum || prop.TypeData.EnumCollectionElementType is not null)
             {
                 if(target.Repository == RepositoryKind.DynamoDb)
                 {
-                    var converterType = prop.TypeData.IsNullable
-                        ? $"NullableEnumToStringConverter<{prop.TypeData.Type.Substring(0, prop.TypeData.Type.Length - 1)}>"
-                        : $"EnumToStringConverter<{prop.TypeData.Type}>";
+                    string converterType;
+                    if (prop.TypeData.EnumCollectionElementType is { } elemType)
+                    {
+                        var bare = elemType.EndsWith("?")
+                            ? elemType.Substring(0, elemType.Length - 1)
+                            : elemType;
+                        converterType = elemType.EndsWith("?")
+                            ? $"NullableEnumListToStringListConverter<{bare}>"
+                            : $"EnumListToStringListConverter<{elemType}>";
+                    }
+                    else
+                    {
+                        converterType = prop.TypeData.IsNullable
+                            ? $"NullableEnumToStringConverter<{prop.TypeData.Type.Substring(0, prop.TypeData.Type.Length - 1)}>"
+                            : $"EnumToStringConverter<{prop.TypeData.Type}>";
+                    }
 
                     sb.AppendLine($"    [DynamoDBProperty(typeof({converterType}))]");
                 }
@@ -255,6 +268,31 @@ internal static class SourceProducer
             : $"[.. {projectedCollection}]";
     }
 
+    // Emits all auto-generated DTOs, skipping any whose model is already covered by a
+    // manually-annotated DTO (userAnnotatedModelNames) and de-duplicating by hint name.
+    public static void EmitAutoDtos(
+        SourceProductionContext context,
+        ImmutableArray<TargetClass> targets,
+        ImmutableArray<string> userAnnotatedModelNames)
+    {
+        var skipModels = new HashSet<string>(userAnnotatedModelNames);
+        var emitted = new HashSet<string>();
+
+        foreach (var target in targets)
+        {
+            if (skipModels.Contains(target.Model.FullName)) continue;
+
+            var key = target.Namespace is not null
+                ? $"{target.Namespace}.{target.ClassName}"
+                : target.ClassName;
+
+            if (!emitted.Add(key)) continue;
+
+            EmitModel(context, target);
+            EmitExtensions(context, target);
+        }
+    }
+
     public static void EmitRepositoryBaseClasses(SourceProductionContext context, ImmutableArray<RepositoryKind> kinds)
     {
         var emittedDynamo = false;
@@ -272,6 +310,12 @@ internal static class SourceProducer
 
                 context.AddSource(DefaultSource.NullableEnumToStringConverter.Filename,
                     SourceText.From(DefaultSource.NullableEnumToStringConverter.Code, Encoding.UTF8));
+
+                context.AddSource(DefaultSource.EnumListToStringListConverter.Filename,
+                    SourceText.From(DefaultSource.EnumListToStringListConverter.Code, Encoding.UTF8));
+
+                context.AddSource(DefaultSource.NullableEnumListToStringListConverter.Filename,
+                    SourceText.From(DefaultSource.NullableEnumListToStringListConverter.Code, Encoding.UTF8));
 
                 context.AddSource(DefaultSource.DynamoDbRepositoryBaseClass.Filename,
                     SourceText.From(DefaultSource.DynamoDbRepositoryBaseClass.Code, Encoding.UTF8));

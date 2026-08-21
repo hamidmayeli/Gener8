@@ -17,11 +17,14 @@ public class Address
 public class Customer
 {
     public required string Name { get; set; }
+    public required CustomerType Type { get; set; }
+}
+
+public enum CustomerType
+{
+    Gold,
+    Silver,
 }
 
 [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
-[TypeMapping(typeof(Customer), typeof(CustomerDto))]
 public partial class OrderDto { }
-
-[FromModel(typeof(Customer))]
-public partial class CustomerDto { }

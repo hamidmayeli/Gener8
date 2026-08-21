@@ -9,11 +9,13 @@
 /// <param name="NeedsSpreadAssignment">True when model type is abstract collection (e.g. IReadOnlyCollection<T>) and DTO uses List<T></param>
 /// <param name="IsEnum">True when the property type is an enum</param>
 /// <param name="IsNullable">True when the property type is null-able</param>
+/// <param name="EnumCollectionElementType">Non-null when the property is a collection of enums; holds the element type display (e.g. "CategoryEnum" or "CategoryEnum?")</param>
 internal sealed record PropertyTypeData(
     string Type,
     bool HasTypeMapping,
     bool HasGenericTypeMapping,
     bool NeedsSpreadAssignment,
     bool IsEnum,
-    bool IsNullable
+    bool IsNullable,
+    string? EnumCollectionElementType = null
     );

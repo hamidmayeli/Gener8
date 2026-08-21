@@ -30,5 +30,18 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
             .Collect();
 
         context.RegisterSourceOutput(repositoryKinds, SourceProducer.EmitRepositoryBaseClasses);
+
+        // Collect model full names of user-annotated DTOs so auto-generation skips duplicates.
+        var userAnnotatedModelNames = pipeline
+            .Select(static (t, _) => t!.Model.FullName)
+            .Collect();
+
+        var autoDtoTargets = pipeline
+            .SelectMany(static (t, _) => t!.AutoDtoTargets)
+            .Collect();
+
+        context.RegisterSourceOutput(
+            autoDtoTargets.Combine(userAnnotatedModelNames),
+            static (ctx, pair) => SourceProducer.EmitAutoDtos(ctx, pair.Left, pair.Right));
     }
 }

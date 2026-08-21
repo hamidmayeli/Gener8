@@ -161,6 +161,38 @@ public class RepositoryTests
         Assert.Contains($"[DynamoDBProperty(typeof({converterType}<CategoryEnum>))]", source);
     }
 
+    [Theory]
+    [InlineData("IList<CategoryEnum>", "EnumListToStringListConverter")]
+    [InlineData("IList<CategoryEnum?>", "NullableEnumListToStringListConverter")]
+    public void CollectionEnumPropertyHasCorrectConverterInDynamoDb(string propertyType, string converterType)
+    {
+        var results = GeneratorDriver.RunUnchecked($$"""
+            using Gener8;
+            using System.Collections.Generic;
+            public enum CategoryEnum { A, B, C }
+            public class Product { public {{propertyType}} Category { get; set; } }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains($"[DynamoDBProperty(typeof({converterType}<CategoryEnum>))]", source);
+    }
+
+    [Fact]
+    public void NestedEmumPropertyHasConverterInDynamoDb()
+    {
+        var results = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            public enum CategoryEnum { A, B, C }
+            public class Product { public CategoryEnum Category { get; set; } }
+            public class WishListItem { public Product Product { get; set; } public DateTime By { get; set; } }
+            [FromModel(typeof(WishListItem), Repository = RepositoryType.DynamoDb)]
+            public partial class WishListItemDto { }
+            """);
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains($"[DynamoDBProperty(typeof(EnumToStringConverter<CategoryEnum>))]", source);
+    }
+
     [Fact]
     public void DynamoDbRepositoryAccessibilityMatchesInternalDto()
     {

@@ -1,17 +1,23 @@
-﻿using Gener8.Contexts;
+using Gener8.Contexts;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
 namespace Gener8;
 
 internal sealed class PropertyDataBuilder(
-    INamedTypeSymbol classSymbol,
-    AttributeData attribute,
+    INamedTypeSymbol? classSymbol,
+    AttributeData? attribute,
     INamedTypeSymbol modelSymbol,
-    RepositoryKind repositoryKind)
+    RepositoryKind repositoryKind,
+    IReadOnlyCollection<string>? qualifyingNamespaces = null)
 {
+    private readonly List<INamedTypeSymbol> _autoTargetSymbols = [];
+
+    public IReadOnlyCollection<INamedTypeSymbol> AutoTargetSymbols => _autoTargetSymbols;
+
     public IReadOnlyCollection<PropertyData> GetProperties()
     {
         var ignoredNames = GetIgnoredProperties();
@@ -19,6 +25,7 @@ internal sealed class PropertyDataBuilder(
         var flattenPrefix = GetFlattenPrefix();
         var includeInherited = GetIncludeInherited();
         var typeMappings = GetTypeMappings();
+        PopulateInferredMappings(typeMappings, includeInherited);
         var renameMap = GetRenameMap();
         var existingDtoProps = GetExistingDtoPropertyNames();
 
@@ -78,9 +85,76 @@ internal sealed class PropertyDataBuilder(
         return properties;
     }
 
+    // Scans model properties for complex types in qualifying namespaces and adds inferred
+    // TypeMappings (e.g. Customer -> CustomerDto). Uses symbol identity to avoid overriding
+    // explicit [TypeMapping] attributes, and the non-nullable key format for consistency.
+    private void PopulateInferredMappings(Dictionary<string, string> typeMappings, bool includeInherited)
+    {
+        if (qualifyingNamespaces is null || qualifyingNamespaces.Count == 0) return;
+
+        // Collect explicit TypeMapping source symbols for identity-based overlap detection.
+        var explicitSourceSymbols = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        if (classSymbol is not null)
+        {
+            foreach (var a in classSymbol.GetAttributes())
+            {
+                if (a.AttributeClass?.ToDisplayString() != DefaultSource.TypeMappingAttribute.Name) continue;
+                if (a.ConstructorArguments.Length < 2) continue;
+                if (a.ConstructorArguments[0].Value is INamedTypeSymbol sourceType)
+                    explicitSourceSymbols.Add(sourceType.OriginalDefinition);
+            }
+        }
+
+        foreach (var property in GetModelProperties(modelSymbol, includeInherited))
+            TryAddInferredMapping(property.Type, typeMappings, explicitSourceSymbols);
+    }
+
+    private void TryAddInferredMapping(
+        ITypeSymbol type,
+        Dictionary<string, string> typeMappings,
+        HashSet<ISymbol> explicitSourceSymbols)
+    {
+        // Recurse into array element types (e.g. Product[] -> ProductDto).
+        if (type is IArrayTypeSymbol arrayType)
+        {
+            TryAddInferredMapping(arrayType.ElementType, typeMappings, explicitSourceSymbols);
+            return;
+        }
+
+        // Recurse into supported collection element types (e.g. List<Customer> -> CustomerDto).
+        if (type is INamedTypeSymbol { IsGenericType: true, Arity: 1 } collType &&
+            IsSupportedMappedCollection(collType))
+        {
+            TryAddInferredMapping(collType.TypeArguments[0], typeMappings, explicitSourceSymbols);
+            return;
+        }
+
+        if (type is not INamedTypeSymbol { IsGenericType: false } namedType) return;
+        if (namedType.TypeKind != TypeKind.Class) return;
+        if (namedType.SpecialType != SpecialType.None) return; // skip string, object, etc.
+
+        var ns = namedType.ContainingNamespace is { IsGlobalNamespace: false } nsSymbol
+            ? nsSymbol.ToDisplayString()
+            : "";
+
+        if (!qualifyingNamespaces!.Contains(ns)) return;
+
+        // Skip when an explicit [TypeMapping] already covers this type (symbol identity check).
+        var originalDef = namedType.OriginalDefinition;
+        if (explicitSourceSymbols.Contains(originalDef)) return;
+
+        // Use the non-nullable key (same format as GetTypeMappings) to avoid duplicate entries.
+        var key = namedType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString();
+        if (typeMappings.ContainsKey(key)) return;
+
+        typeMappings[key] = namedType.Name + "Dto";
+        _autoTargetSymbols.Add((INamedTypeSymbol)originalDef);
+    }
+
     private HashSet<string> GetExistingDtoPropertyNames()
     {
         var names = new HashSet<string>();
+        if (classSymbol is null) return names;
 
         foreach (var member in classSymbol.GetMembers())
             if (member is IPropertySymbol prop && !prop.IsStatic)
@@ -92,6 +166,8 @@ internal sealed class PropertyDataBuilder(
     private Dictionary<string, string> GetTypeMappings()
     {
         var typeMappings = new Dictionary<string, string>();
+        if (classSymbol is null) return typeMappings;
+
         foreach (var a in classSymbol.GetAttributes())
         {
             if (a.AttributeClass?.ToDisplayString() != DefaultSource.TypeMappingAttribute.Name) continue;
@@ -109,6 +185,8 @@ internal sealed class PropertyDataBuilder(
     private HashSet<string> GetIgnoredProperties()
     {
         var ignoredNames = new HashSet<string>();
+        if (attribute is null) return ignoredNames;
+
         foreach (var namedArg in attribute.NamedArguments)
         {
             if (namedArg.Key != "Ignore") continue;
@@ -159,16 +237,41 @@ internal sealed class PropertyDataBuilder(
         )
     {
         var originalType = property.Type.ToDisplayString();
-        var hasDirectTypeMapping = typeMappings.TryGetValue(originalType, out var mappedType);
+        var isNullable = isParentNullable || property.NullableAnnotation == NullableAnnotation.Annotated;
+
+        // Roslyn's default ToDisplayString() includes '?' for nullable reference types when
+        // nullable context is enabled. TypeMapping keys are stored without '?' (from INamedTypeSymbol).
+        // Normalise the lookup to find mappings for both nullable and non-nullable references.
+        var typeForLookup = originalType.EndsWith("?")
+            ? originalType.Substring(0, originalType.Length - 1)
+            : originalType;
+
+        var hasDirectTypeMapping = typeMappings.TryGetValue(originalType, out var mappedType)
+            || typeMappings.TryGetValue(typeForLookup, out mappedType);
+
         var hasGenericTypeMapping = false;
         string? mappedCollectionElementType = null;
         var typeDisplay = hasDirectTypeMapping ? mappedType! : originalType;
-        var isNullable = isParentNullable || property.NullableAnnotation == NullableAnnotation.Annotated;
+
+        // When a TypeMapping is applied to a nullable source property, propagate nullability
+        // to the mapped type so the generated DTO property is also nullable.
+        if (hasDirectTypeMapping && isNullable && !typeDisplay.EndsWith("?"))
+            typeDisplay += "?";
 
         if (!hasDirectTypeMapping && TryGetMappedCollectionType(property.Type, typeMappings, out var collectionTypeMapping))
         {
             typeDisplay = collectionTypeMapping.Value.TypeDisplay;
             mappedCollectionElementType = collectionTypeMapping.Value.ElementTypeDisplay;
+            hasGenericTypeMapping = true;
+        }
+
+        // Handle T[] arrays: map element type and convert to List<TDto>.
+        if (!hasDirectTypeMapping && !hasGenericTypeMapping
+            && property.Type is IArrayTypeSymbol { ElementType: var arrElemType }
+            && TryGetMappedCollectionElementType(arrElemType, typeMappings, out var mappedArrElem))
+        {
+            var baseList = $"System.Collections.Generic.List<{mappedArrElem}>";
+            typeDisplay = isNullable ? baseList + "?" : baseList;
             hasGenericTypeMapping = true;
         }
 
@@ -193,7 +296,29 @@ internal sealed class PropertyDataBuilder(
             hasGenericTypeMapping,
             needsSpreadAssignment,
             IsEnumType(property),
-            isNullable);
+            isNullable,
+            GetEnumCollectionElementType(property));
+    }
+
+    // Returns the element type display string when the property is a supported collection of enums
+    // (e.g. "CategoryEnum" for IList<CategoryEnum>, "CategoryEnum?" for IList<CategoryEnum?>).
+    // Returns null when not an enum collection.
+    private static string? GetEnumCollectionElementType(IPropertySymbol property)
+    {
+        if (property.Type is not INamedTypeSymbol { IsGenericType: true, Arity: 1 } namedType)
+            return null;
+        if (!IsSupportedMappedCollection(namedType))
+            return null;
+        var elementType = namedType.TypeArguments[0];
+        // IList<CategoryEnum>
+        if (elementType.TypeKind == TypeKind.Enum)
+            return elementType.ToDisplayString();
+        // IList<CategoryEnum?> — element is Nullable<TEnum>
+        if (elementType is INamedTypeSymbol { IsGenericType: true } elemNamed
+            && elemNamed.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T
+            && elemNamed.TypeArguments[0].TypeKind == TypeKind.Enum)
+            return elemNamed.TypeArguments[0].ToDisplayString() + "?";
+        return null;
     }
 
     private static bool IsEnumType(IPropertySymbol property)
@@ -242,6 +367,14 @@ internal sealed class PropertyDataBuilder(
         var originalType = type.ToDisplayString();
         if (typeMappings.TryGetValue(originalType, out mappedElementType))
             return true;
+
+        // Also try without trailing '?' for the same reason as GetTypeData.
+        if (originalType.EndsWith("?"))
+        {
+            var stripped = originalType.Substring(0, originalType.Length - 1);
+            if (typeMappings.TryGetValue(stripped, out mappedElementType))
+                return true;
+        }
 
         if (TryGetMappedCollectionType(type, typeMappings, out var nestedCollectionType))
         {
@@ -343,6 +476,7 @@ internal sealed class PropertyDataBuilder(
 
     private bool GetIncludeInherited()
     {
+        if (attribute is null) return false;
         foreach (var namedArg in attribute.NamedArguments)
             if (namedArg.Key == "IncludeInherited" && namedArg.Value.Value is bool val)
                 return val;
@@ -353,6 +487,7 @@ internal sealed class PropertyDataBuilder(
     private HashSet<string> GetFlattenProperties()
     {
         var result = new HashSet<string>();
+        if (attribute is null) return result;
         foreach (var namedArg in attribute.NamedArguments)
         {
             if (namedArg.Key != "Flatten") continue;
@@ -365,6 +500,7 @@ internal sealed class PropertyDataBuilder(
 
     private FlattenPrefixMode GetFlattenPrefix()
     {
+        if (attribute is null) return FlattenPrefixMode.Parent;
         foreach (var namedArg in attribute.NamedArguments)
             if (namedArg.Key == "FlattenPrefix" && namedArg.Value.Value is int val)
                 return (FlattenPrefixMode)val;
@@ -374,6 +510,7 @@ internal sealed class PropertyDataBuilder(
     private Dictionary<string, string> GetRenameMap()
     {
         var map = new Dictionary<string, string>();
+        if (classSymbol is null) return map;
         foreach (var a in classSymbol.GetAttributes())
         {
             if (a.AttributeClass?.ToDisplayString() != DefaultSource.RenamePropertyAttribute.Name) continue;
