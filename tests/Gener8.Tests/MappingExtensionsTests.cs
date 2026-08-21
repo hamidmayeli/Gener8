@@ -320,4 +320,74 @@ public class MappingExtensionsTests
         Assert.Contains("? ToModel(", source);
         Assert.Contains("? ToDto(", source);
     }
+
+    [Fact]
+    public void PositionalRecordToModelUsesConstructor()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public record DeviceCost(decimal Weekly, decimal OneTime);
+            [FromModel(typeof(DeviceCost))]
+            public partial class DeviceCostDto { }
+            """);
+
+        var source = results["DeviceCostDtoExtensions.g.cs"];
+        Assert.Contains("=> dto is null ? null : new(dto.Weekly, dto.OneTime);", source);
+    }
+
+    [Fact]
+    public void NonRecordToModelUsesObjectInitializer()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class DeviceCost { public decimal Weekly { get; set; } public decimal OneTime { get; set; } }
+            [FromModel(typeof(DeviceCost))]
+            public partial class DeviceCostDto { }
+            """);
+
+        var source = results["DeviceCostDtoExtensions.g.cs"];
+        Assert.Contains("new global::DeviceCost", source);
+        Assert.Contains("Weekly = dto.Weekly,", source);
+        Assert.Contains("OneTime = dto.OneTime,", source);
+    }
+
+    [Fact]
+    public void MixedRecordToModelUsesConstructorThenObjectInitializer()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public record Tag(string Name)
+            {
+                public int Order { get; set; }
+            }
+            [FromModel(typeof(Tag))]
+            public partial class TagDto { }
+            """);
+
+        var source = results["TagDtoExtensions.g.cs"];
+        Assert.Contains("=> dto is null ? null : new(dto.Name)", source);
+        Assert.Contains("Order = dto.Order,", source);
+        Assert.DoesNotContain("new(dto.Name);", source);
+    }
+
+    [Fact]
+    public void UsesConstructorThenObjectInitializerWithNonRecordAndNonPrimaryConstructor()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Tag
+            {
+                public Tag(string name) => Name = name;
+                public string Name { get; }
+                public int Order { get; set; }
+            }
+            [FromModel(typeof(Tag))]
+            public partial class TagDto { }
+            """);
+
+        var source = results["TagDtoExtensions.g.cs"];
+        Assert.Contains("=> dto is null ? null : new(dto.Name)", source);
+        Assert.Contains("Order = dto.Order,", source);
+        Assert.DoesNotContain("new(dto.Name);", source);
+    }
 }

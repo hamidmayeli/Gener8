@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Gener8;
@@ -53,7 +54,7 @@ internal static class SyntaxTransformer
             ns,
             accessibility,
             properties,
-            new(modelFullName, modelSymbol.Name),
+            new(modelFullName, modelSymbol.Name, GetPrimaryConstructorParams(modelSymbol)),
             repositoryKind,
             autoTargets);
     }
@@ -127,7 +128,7 @@ internal static class SyntaxTransformer
                 targetNs,
                 accessibility,
                 props,
-                new ModelClass(modelFullName, symbol.Name),
+                new ModelClass(modelFullName, symbol.Name, GetPrimaryConstructorParams(symbol)),
                 repositoryKind,
                 []));
         }
@@ -140,6 +141,55 @@ internal static class SyntaxTransformer
                 return (RepositoryKind)val;
 
         return RepositoryKind.None;
+    }
+
+    // Returns ordered property names (in constructor parameter order) when the model type has a
+    // non-implicit constructor whose parameters all resolve to public properties. Supports both
+    // records (PascalCase params) and regular classes (camelCase params capitalized to match props).
+    // Returns default when object-initializer style should be used instead.
+    private static ImmutableArray<string> GetPrimaryConstructorParams(INamedTypeSymbol modelSymbol)
+    {
+        var propNames = new HashSet<string>();
+        foreach (var member in modelSymbol.GetMembers())
+            if (member is IPropertySymbol { DeclaredAccessibility: Accessibility.Public, IsStatic: false } p)
+                propNames.Add(p.Name);
+
+        if (propNames.Count == 0) return default;
+
+        foreach (var ctor in modelSymbol.InstanceConstructors)
+        {
+            if (ctor.IsImplicitlyDeclared) continue;
+            if (ctor.Parameters.Length == 0) continue;
+
+            var allMatch = true;
+            var mappedNames = new List<string>(ctor.Parameters.Length);
+            foreach (var param in ctor.Parameters)
+            {
+                // PascalCase exact match (records), then capitalize-first fallback (regular classes)
+                if (propNames.Contains(param.Name))
+                {
+                    mappedNames.Add(param.Name);
+                }
+                else
+                {
+                    var cap = param.Name.Length > 0
+                        ? char.ToUpper(param.Name[0]) + param.Name.Substring(1)
+                        : param.Name;
+                    if (propNames.Contains(cap))
+                        mappedNames.Add(cap);
+                    else
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!allMatch) continue;
+            return [.. mappedNames];
+        }
+
+        return default;
     }
 
     private static bool TryGetFromModelAttributeData(INamedTypeSymbol classSymbol, [NotNullWhen(true)] out AttributeData? attr)

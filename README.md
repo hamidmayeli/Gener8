@@ -45,7 +45,7 @@ internal partial class ProductDto
 }
 ```
 
-All accessor kinds (`get`, `set`, `init`), the `required` modifier, and property initializers are preserved exactly as declared on the source model.
+The `set`/`init` accessor, the `required` modifier, and property initializers are preserved exactly as declared on the source model. Get-only properties are excluded unless they are set via a detected constructor (positional records, or any class with a matching constructor), in which case they are emitted with `init` and `ToModel` uses constructor-style initialization.
 
 ## Features
 

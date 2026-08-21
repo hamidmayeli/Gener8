@@ -83,7 +83,15 @@ internal static class SourceProducer
             else if (prop.HasSetter) accessors.Append(" set;");
             accessors.Append(" }");
 
-            var modifier = prop.IsRequired ? "required " : "";
+            bool isRequired()
+            {
+                if(prop.IsRequired) return true;
+                if(target.Model.PrimaryConstructorParams.IsDefault) return false;
+                if(target.Model.PrimaryConstructorParams.Contains(prop.Name)) return true;
+                return false;
+            }
+
+            var modifier = isRequired() ? "required " : "";
             var line = $"    public {modifier}{prop.TypeData.Type} {prop.Name}{accessors}";
             if (prop.Initializer is not null)
                 line += $" = {prop.Initializer};";
@@ -130,61 +138,135 @@ internal static class SourceProducer
         // ToModel: dto -> model
         sb.AppendLine($"    [return: NotNullIfNotNull(nameof(dto))]");
         sb.AppendLine($"    public static {target.Model.FullName}? ToModel(this {target.ClassName}? dto)");
-        sb.AppendLine($"        => dto is null ? null : new {target.Model.FullName}");
-        sb.AppendLine($"        {{");
-        foreach (var prop in target.Properties)
+
+        if (!target.Model.PrimaryConstructorParams.IsDefault)
         {
-            if (prop.Flattened is not null) continue;
-            if (!prop.HasGetter) continue;
-            if (!prop.HasSetter && !prop.IsInitOnly) continue;
+            var ctorParams = target.Model.PrimaryConstructorParams;
+            var ctorParamSet = new HashSet<string>(ctorParams);
 
-            var modelPropName = prop.ModelPropertyName ?? prop.Name;
-            var nc = prop.TypeData.IsNullable ? "?" : "";
-            var dtoRead = prop.TypeData.HasTypeMapping
-                ? prop.TypeData.HasGenericTypeMapping
-                    ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
-                    : $"dto.{prop.Name}{nc}.ToModel()"
-                : $"dto.{prop.Name}";
-
-            sb.AppendLine($"            {modelPropName} = {dtoRead},");
-        }
-        // Reconstruct flattened parent objects from their spread DTO properties.
-        foreach (var kvp in flattenedByParent)
-        {
-            var parentName = kvp.Key;
-            var flatProps = kvp.Value;
-            var firstProp = flatProps[0];
-            var parentTypeFullName = firstProp.Flattened!.ParentTypeFullName;
-            var parentIsNullable = firstProp.Flattened!.ReadPath.Contains("?.");
-
-            if (parentIsNullable)
+            // Build constructor argument list
+            var args = new StringBuilder();
+            for (var i = 0; i < ctorParams.Length; i++)
             {
-                // Use the first property as the null indicator. C# flow analysis narrows it
-                // to non-null inside the false branch of the ternary.
-                sb.AppendLine($"            {parentName} = dto.{firstProp.Name} is null ? null : new {parentTypeFullName}");
-                sb.AppendLine($"            {{");
-                for (var i = 0; i < flatProps.Count; i++)
+                if (i > 0) args.Append(", ");
+                var paramName = ctorParams[i];
+                string dtoPropName = paramName;
+                PropertyTypeData? typeData = null;
+                foreach (var p in target.Properties)
                 {
-                    var p = flatProps[i];
-                    // The first property is flow-narrowed after the null check above.
-                    // Subsequent properties whose type was made nullable solely by the parent
-                    // (not originally nullable) need '!' to satisfy the non-nullable target slot.
-                    var bang = (i > 0 && !p.Flattened!.OriginallyNullable) ? "!" : "";
-                    sb.AppendLine($"                {p.Flattened!.NestedPropertyName} = dto.{p.Name}{bang},");
+                    if ((p.ModelPropertyName ?? p.Name) == paramName)
+                    {
+                        dtoPropName = p.Name;
+                        typeData = p.TypeData;
+                        break;
+                    }
                 }
-                sb.AppendLine($"            }},");
+                if (typeData?.HasTypeMapping == true)
+                {
+                    var nc = typeData.IsNullable ? "?" : "";
+                    args.Append(typeData.HasGenericTypeMapping
+                        ? BuildProjectedCollectionMapping($"dto.{dtoPropName}", "ToModel", typeData.IsNullable)
+                        : $"dto.{dtoPropName}{nc}.ToModel()");
+                }
+                else
+                {
+                    args.Append($"dto.{dtoPropName}");
+                }
+            }
+
+            // Collect properties not covered by the constructor (regular set/init properties)
+            var extraProps = new List<PropertyData>();
+            foreach (var prop in target.Properties)
+            {
+                if (prop.Flattened is not null) continue;
+                if (!prop.HasGetter) continue;
+                if (!prop.HasSetter && !prop.IsInitOnly) continue;
+                if (ctorParamSet.Contains(prop.ModelPropertyName ?? prop.Name)) continue;
+                extraProps.Add(prop);
+            }
+
+            if (extraProps.Count == 0)
+            {
+                sb.AppendLine($"        => dto is null ? null : new({args});");
+                sb.AppendLine();
             }
             else
             {
-                sb.AppendLine($"            {parentName} = new {parentTypeFullName}");
-                sb.AppendLine($"            {{");
-                foreach (var p in flatProps)
-                    sb.AppendLine($"                {p.Flattened!.NestedPropertyName} = dto.{p.Name},");
-                sb.AppendLine($"            }},");
+                sb.AppendLine($"        => dto is null ? null : new({args})");
+                sb.AppendLine($"        {{");
+                foreach (var prop in extraProps)
+                {
+                    var modelPropName = prop.ModelPropertyName ?? prop.Name;
+                    var nc = prop.TypeData.IsNullable ? "?" : "";
+                    var dtoRead = prop.TypeData.HasTypeMapping
+                        ? prop.TypeData.HasGenericTypeMapping
+                            ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
+                            : $"dto.{prop.Name}{nc}.ToModel()"
+                        : $"dto.{prop.Name}";
+                    sb.AppendLine($"            {modelPropName} = {dtoRead},");
+                }
+                sb.AppendLine($"        }};");
+                sb.AppendLine();
             }
         }
-        sb.AppendLine($"        }};");
-        sb.AppendLine();
+        else
+        {
+            sb.AppendLine($"        => dto is null ? null : new {target.Model.FullName}");
+            sb.AppendLine($"        {{");
+            foreach (var prop in target.Properties)
+            {
+                if (prop.Flattened is not null) continue;
+                if (!prop.HasGetter) continue;
+                if (!prop.HasSetter && !prop.IsInitOnly) continue;
+
+                var modelPropName = prop.ModelPropertyName ?? prop.Name;
+                var nc = prop.TypeData.IsNullable ? "?" : "";
+                var dtoRead = prop.TypeData.HasTypeMapping
+                    ? prop.TypeData.HasGenericTypeMapping
+                        ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
+                        : $"dto.{prop.Name}{nc}.ToModel()"
+                    : $"dto.{prop.Name}";
+
+                sb.AppendLine($"            {modelPropName} = {dtoRead},");
+            }
+            // Reconstruct flattened parent objects from their spread DTO properties.
+            foreach (var kvp in flattenedByParent)
+            {
+                var parentName = kvp.Key;
+                var flatProps = kvp.Value;
+                var firstProp = flatProps[0];
+                var parentTypeFullName = firstProp.Flattened!.ParentTypeFullName;
+                var parentIsNullable = firstProp.Flattened!.ReadPath.Contains("?.");
+
+                if (parentIsNullable)
+                {
+                    // Use the first property as the null indicator. C# flow analysis narrows it
+                    // to non-null inside the false branch of the ternary.
+                    sb.AppendLine($"            {parentName} = dto.{firstProp.Name} is null ? null : new {parentTypeFullName}");
+                    sb.AppendLine($"            {{");
+                    for (var i = 0; i < flatProps.Count; i++)
+                    {
+                        var p = flatProps[i];
+                        // The first property is flow-narrowed after the null check above.
+                        // Subsequent properties whose type was made nullable solely by the parent
+                        // (not originally nullable) need '!' to satisfy the non-nullable target slot.
+                        var bang = (i > 0 && !p.Flattened!.OriginallyNullable) ? "!" : "";
+                        sb.AppendLine($"                {p.Flattened!.NestedPropertyName} = dto.{p.Name}{bang},");
+                    }
+                    sb.AppendLine($"            }},");
+                }
+                else
+                {
+                    sb.AppendLine($"            {parentName} = new {parentTypeFullName}");
+                    sb.AppendLine($"            {{");
+                    foreach (var p in flatProps)
+                        sb.AppendLine($"                {p.Flattened!.NestedPropertyName} = dto.{p.Name},");
+                    sb.AppendLine($"            }},");
+                }
+            }
+            sb.AppendLine($"        }};");
+            sb.AppendLine();
+        }
 
         // ToDto: model -> dto
         sb.AppendLine($"    [return: NotNullIfNotNull(nameof(model))]");

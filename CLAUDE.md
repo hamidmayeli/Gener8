@@ -15,7 +15,7 @@ src/Gener8/
 ├── DefaultSource.cs         — injected attribute/enum/base-class source files
 └── Contexts/                — immutable records used across the incremental pipeline
     ├── TargetClass.cs       — record: ClassName, Namespace, Accessibility, Properties, Model, Repository
-    ├── ModelClass.cs        — record: FullName, Name
+    ├── ModelClass.cs        — record: FullName, Name, PrimaryConstructorParams
     ├── PropertyData.cs      — record: TypeData, Name, accessors, ModelPropertyName, IsUserDeclared, Flattened
     ├── PropertyTypeData.cs  — record: Type, HasTypeMapping, HasGenericTypeMapping, NeedsSpreadAssignment, IsEnum, IsNullable, EnumCollectionElementType
     ├── FlattenedPropertyData.cs — record: ReadPath, ParentName, ParentTypeFullName, NestedPropertyName, OriginallyNullable
@@ -60,8 +60,9 @@ internal partial class TheDto {}
 
 - Attribute full name: `Gener8.FromModelAttribute`
 - Model lookup: resolved directly from the `typeof()` argument — fully-qualified names supported
-- Property filter: public, non-static only
-- All accessor kinds preserved: `get`, `set`, `init`
+- Property filter: public, non-static, must have `set` or `init` (get-only excluded unless constructor-backed — see below)
+- Accessor kinds preserved: `set`, `init`; constructor-backed get-only properties are emitted with forced `init`
+- Constructor mapper: when the model has a non-implicit constructor whose parameters all match public property names (exact or camelCase→PascalCase), `ToModel` emits `new(dto.P1, dto.P2, ...)` instead of object-initializer syntax; positional records and hand-written constructors both supported; mixed types (some ctor params + extra settable props) emit `new(dto.P1) { ExtraProp = dto.ExtraProp }`
 - `[TypeMapping(typeof(A), typeof(ADto))]` — remaps property types; extension methods generate chained `.ToModel()`/`.ToDto()` calls
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path); `ToModel` reconstructs the nested parent object from the spread DTO properties (null-safe ternary for nullable parents)

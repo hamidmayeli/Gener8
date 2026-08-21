@@ -18,19 +18,18 @@ public class FromModelGeneratorTests
     }
 
     [Fact]
-    public void PreservesGetOnlyProperty()
+    public void SkipsGetOnlyProperty()
     {
         var results = GeneratorDriver.Run("""
             using Gener8;
-            public class MyModel { public string Id { get; } = ""; }
+            public class MyModel { public string Id { get; } = ""; public string Name { get; set; } = ""; }
             [FromModel(typeof(MyModel))]
             public partial class MyDto { }
             """);
 
         var source = Assert.Single(results, r => r.Key == "MyDto.g.cs").Value;
-        Assert.Contains("public string Id { get; }", source);
-        Assert.DoesNotContain("set;", source);
-        Assert.DoesNotContain("init;", source);
+        Assert.DoesNotContain("Id", source);
+        Assert.Contains("public string Name { get; set; }", source);
     }
 
     [Fact]

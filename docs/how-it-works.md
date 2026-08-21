@@ -65,10 +65,11 @@ For each class that passes the filter, the generator accesses the semantic model
 1. **Resolve the DTO class symbol** — obtains the `INamedTypeSymbol` for the partial class.
 2. **Find `[FromModel]`** — locates the attribute and reads the `typeof()` argument to get the model type symbol.
 3. **Extract configuration** — reads `Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited` from the attribute; reads `[TypeMapping]` and `[RenameProperty]` attributes from the class.
-4. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties. A `HashSet<string>` tracks already-seen names to handle overrides when `IncludeInherited = true`. Traversal stops at `System.Object`.
-5. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags.
-6. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record (carrying the parent name, fully-qualified parent type, and nested property name needed for `ToModel` reconstruction).
-7. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs.
+4. **Detect constructor params** — `PropertyDataBuilder` inspects the model's non-implicit constructors. If a constructor is found whose parameters all resolve to public properties (by exact name or camelCase→PascalCase), those property names are recorded as constructor-backed. This drives two downstream effects: the properties are included even if get-only on the model, and `ToModel` uses constructor-style initialization.
+5. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names to handle overrides when `IncludeInherited = true`. Traversal stops at `System.Object`.
+6. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags. Constructor-backed get-only properties are forced to `IsInitOnly = true` so the DTO emits `init`.
+7. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record (carrying the parent name, fully-qualified parent type, and nested property name needed for `ToModel` reconstruction).
+8. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs, including `ModelClass.PrimaryConstructorParams` (the ordered property names for constructor-style `ToModel`).
 
 ### Stage 4 — Code generation (`Emit`)
 
@@ -102,6 +103,9 @@ using System.Linq;
   {
       [return: NotNullIfNotNull(nameof(dto))]
       public static {ModelFullName}? ToModel(this {ClassName}? dto)
+          // constructor style when PrimaryConstructorParams is set:
+          => dto is null ? null : new(dto.P1, dto.P2);
+          // or object-initializer style otherwise:
           => dto is null ? null : new {ModelFullName} { ... };
 
       [return: NotNullIfNotNull(nameof(model))]
@@ -110,6 +114,8 @@ using System.Linq;
   }
 [}]
 ```
+
+**`ToModel` style selection** — if `ModelClass.PrimaryConstructorParams` is set, `ToModel` emits `new(dto.P1, dto.P2, ...)` (positional constructor call) for the constructor-param properties. Any remaining settable properties are emitted as an object-initializer block after the constructor call: `new(dto.Name) { Order = dto.Order, }`. When `PrimaryConstructorParams` is not set, the full object-initializer form is used.
 
 Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Prop.ToDto()`), with `?.` for nullable types. Flattened properties appear in `ToDto` via their `ReadPath`. In `ToModel`, flattened properties are grouped by parent and the nested object is reconstructed inline (`Parent = new ParentType { Nested = dto.FlatProp, ... }`); nullable parents get a null-safe ternary (`dto.FlatProp is null ? null : new ParentType { ... }`). Renamed properties use `ModelPropertyName` on the model side. DynamoDB/MongoDB abstract collection and array properties use collection spread (`[.. model.Prop]`) in `ToDto`.
 
@@ -156,8 +162,9 @@ record TargetClass(
     RepositoryKind Repository);
 
 record ModelClass(
-    string FullName,    // global::-prefixed fully-qualified name
-    string Name);       // simple class name, used for the repository class name
+    string FullName,                                  // global::-prefixed fully-qualified name
+    string Name,                                      // simple class name, used for the repository class name
+    ImmutableArray<string> PrimaryConstructorParams); // ordered property names for ctor-style ToModel; default = use object initializer
 ```
 
 `RepositoryKind` is an internal enum (`None`, `DynamoDb`, `MongoDb`, `Custom`) — a mirror of the injected `RepositoryType` enum that avoids a dependency on the generated attribute source.

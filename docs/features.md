@@ -2,13 +2,15 @@
 
 ## Property copying — what is preserved
 
-By default, `[FromModel]` copies every **public, non-static instance property** declared directly on the model type. For each property the generator preserves:
+By default, `[FromModel]` copies every **public, non-static instance property** that has a `set` or `init` accessor, declared directly on the model type. For each copied property the generator preserves:
 
 - The fully-qualified type name (including nullability annotations)
 - The property name
-- All accessor kinds: `get`, `set`, `init`
+- The accessor kind: `set` or `init`
 - The `required` modifier
 - Property initializers (`= ""`, `= 42`, `= string.Empty`, etc.)
+
+**Get-only properties** (no `set` or `init`) are excluded — they cannot be populated in the generated DTO. The exception is [constructor-backed properties](#constructor-backed-properties), which are included automatically with a forced `init` accessor.
 
 ```csharp
 public class Product
@@ -17,7 +19,7 @@ public class Product
     public string Description      { get; set; } = "";  // initializer preserved
     public decimal Price           { get; set; }
     public string Slug             { get; init; }       // init preserved
-    public string? Tag             { get; }             // get-only preserved
+    public string Computed         { get; }             // excluded — get-only
 }
 
 [FromModel(typeof(Product))]
@@ -28,7 +30,43 @@ internal partial class ProductDto { }
 // public string Description      { get; set; } = "";
 // public decimal Price           { get; set; }
 // public string Slug             { get; init; }
-// public string? Tag             { get; }
+```
+
+### Constructor-backed properties
+
+When a model type has a non-implicit constructor whose parameters all resolve to public properties (by exact name or camelCase-to-PascalCase), those properties are included in the DTO even if they are get-only on the model. They are emitted with `init` so the DTO can be populated. `ToModel` uses constructor-style initialization instead of an object initializer.
+
+```csharp
+public class Money
+{
+    public Money(decimal amount, string currency) { Amount = amount; Currency = currency; }
+    public decimal Amount   { get; }
+    public string  Currency { get; }
+}
+
+[FromModel(typeof(Money))]
+internal partial class MoneyDto { }
+
+// Generated DTO:
+// public required decimal Amount   { get; init; }
+// public required string  Currency { get; init; }
+
+// Generated ToModel:
+// => dto is null ? null : new(dto.Amount, dto.Currency);
+```
+
+Positional records are detected the same way — `public record DeviceCost(decimal Weekly, decimal OneTime)` produces `new(dto.Weekly, dto.OneTime)`.
+
+When a type mixes constructor parameters with regular settable properties, `ToModel` combines both styles:
+
+```csharp
+public record Tag(string Name) { public int Order { get; set; } }
+
+// Generated ToModel:
+// => dto is null ? null : new(dto.Name)
+// {
+//     Order = dto.Order,
+// };
 ```
 
 ---
@@ -187,6 +225,8 @@ internal partial class ProductDto { }
 ```
 
 Both methods accept and return nullable types. `[return: NotNullIfNotNull]` lets the compiler prove the return is non-null whenever the input is non-null, so callers with non-null references need no null-check.
+
+When the model type uses a constructor (positional record or any class whose constructor parameters all match property names), `ToModel` uses constructor-style initialization — see [Constructor-backed properties](#constructor-backed-properties).
 
 The extension class accessibility mirrors the DTO: `public` DTOs get `public` extensions, everything else gets `internal`.
 

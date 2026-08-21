@@ -24,6 +24,7 @@ public class TestProductRepository(TestFixture fixture) : IClassFixture<TestFixt
                 new() { Name = "Category 1", Group = CategoryGroup.Secondary },
                 new() { Name = "Category 2", Group = CategoryGroup.Secondary },
             ],
+            Tag = new("Sample") { Order = 1 },
         };
         await Repository.SaveAsync(product, TestContext.Current.CancellationToken);
 

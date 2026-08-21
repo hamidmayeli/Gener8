@@ -29,8 +29,10 @@ internal sealed class PropertyDataBuilder(
         var renameMap = GetRenameMap();
         var existingDtoProps = GetExistingDtoPropertyNames();
 
+        var ctorBackedNames = GetConstructorBackedPropertyNames(modelSymbol);
+
         var properties = new List<PropertyData>();
-        foreach (var property in GetModelProperties(modelSymbol, includeInherited))
+        foreach (var property in GetModelProperties(modelSymbol, includeInherited, ctorBackedNames))
         {
             if (ignoredNames.Contains(property.Name)) continue;
 
@@ -76,7 +78,8 @@ internal sealed class PropertyDataBuilder(
                         typeMappings,
                         renameMap,
                         repositoryKind,
-                        isUserDeclared: isUserDeclared
+                        isUserDeclared: isUserDeclared,
+                        isConstructorBacked: ctorBackedNames.Contains(property.Name)
                         )
                     );
             }
@@ -206,19 +209,24 @@ internal sealed class PropertyDataBuilder(
         RepositoryKind repositoryKind,
         string? nameOverride = null,
         (string Name, string TypeFullName, bool IsNullable)? flattenParent = null,
-        bool isUserDeclared = false)
+        bool isUserDeclared = false,
+        bool isConstructorBacked = false)
     {
         var name = nameOverride
             ?? (renameMap?.TryGetValue(property.Name, out var renamed) == true ? renamed : property.Name);
 
         var modelPropertyName = flattenParent is null && name != property.Name ? property.Name : null;
 
+        // A get-only model property backed by a constructor needs init in the DTO so it can be populated.
+        var isInitOnly = property.SetMethod is { IsInitOnly: true } || (property.SetMethod is null && isConstructorBacked);
+        var hasSetter = property.SetMethod is not null && !property.SetMethod.IsInitOnly && !isInitOnly;
+
         return new PropertyData(
             GetTypeData(property, typeMappings, repositoryKind, flattenParent?.IsNullable ?? false),
             name,
             property.GetMethod is not null,
-            property.SetMethod is not null && !property.SetMethod.IsInitOnly,
-            property.SetMethod is { IsInitOnly: true },
+            hasSetter,
+            isInitOnly,
             property.IsRequired && !(flattenParent?.IsNullable ?? false),
             GetInitializer(property),
             modelPropertyName,
@@ -454,7 +462,7 @@ internal sealed class PropertyDataBuilder(
     }
 
     private static IEnumerable<IPropertySymbol> GetModelProperties(
-        INamedTypeSymbol modelSymbol, bool includeInherited)
+        INamedTypeSymbol modelSymbol, bool includeInherited, HashSet<string>? ctorBackedNames = null)
     {
         var seenNames = new HashSet<string>();
         var current = modelSymbol;
@@ -466,12 +474,57 @@ internal sealed class PropertyDataBuilder(
                 if (member is not IPropertySymbol prop) continue;
                 if (prop.DeclaredAccessibility != Accessibility.Public) continue;
                 if (prop.IsStatic) continue;
+                if (prop.SetMethod is null && !(ctorBackedNames?.Contains(prop.Name) ?? false)) continue;
                 if (!seenNames.Add(prop.Name)) continue;
                 yield return prop;
             }
             if (!includeInherited) break;
             current = current.BaseType;
         }
+    }
+
+    // Returns the set of public property names that are covered by a non-implicit constructor
+    // (PascalCase exact match or capitalize-first for camelCase params). Used to include
+    // get-only model properties that can only be set via that constructor.
+    private static HashSet<string> GetConstructorBackedPropertyNames(INamedTypeSymbol modelSymbol)
+    {
+        var propNames = new HashSet<string>();
+        foreach (var member in modelSymbol.GetMembers())
+            if (member is IPropertySymbol { DeclaredAccessibility: Accessibility.Public, IsStatic: false } p)
+                propNames.Add(p.Name);
+
+        foreach (var ctor in modelSymbol.InstanceConstructors)
+        {
+            if (ctor.IsImplicitlyDeclared) continue;
+            if (ctor.Parameters.Length == 0) continue;
+
+            var result = new HashSet<string>();
+            var allMatch = true;
+            foreach (var param in ctor.Parameters)
+            {
+                if (propNames.Contains(param.Name))
+                {
+                    result.Add(param.Name);
+                }
+                else
+                {
+                    var cap = param.Name.Length > 0
+                        ? char.ToUpper(param.Name[0]) + param.Name.Substring(1)
+                        : param.Name;
+                    if (propNames.Contains(cap))
+                        result.Add(cap);
+                    else
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                }
+            }
+
+            if (allMatch) return result;
+        }
+
+        return [];
     }
 
     private bool GetIncludeInherited()

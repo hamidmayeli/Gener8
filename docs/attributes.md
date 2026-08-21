@@ -288,11 +288,11 @@ The generator always emits properties as `public`. The following are carried thr
 
 | Attribute / modifier | Preserved |
 |---|---|
-| `get` accessor | Yes |
 | `set` accessor | Yes |
 | `init` accessor | Yes |
 | `required` modifier | Yes |
 | Property initializer (`= value`) | Yes |
+| `get`-only properties (no `set`/`init`) | No — excluded (unless [constructor-backed](features.md#constructor-backed-properties)) |
 | `private`, `protected`, `internal` properties | No — excluded |
 | `static` properties | No — excluded |
 | Indexers | No — excluded |
