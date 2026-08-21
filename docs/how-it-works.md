@@ -104,7 +104,7 @@ Takes a `ClassTarget` and writes up to three `StringBuilder`-based C# source fil
 [}]
 ```
 
-Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Prop.ToDto()`), with `?.` for nullable types. Flattened properties appear in `ToDto` via their `ReadPath`. In `ToModel`, flattened properties are grouped by parent and the nested object is reconstructed inline (`Parent = new ParentType { Nested = dto.FlatProp, ... }`); nullable parents get a null-safe ternary (`dto.FlatProp is null ? null : new ParentType { ... }`). Renamed properties use `ModelPropertyName` on the model side. DynamoDB/MongoDB abstract collection properties use collection spread (`[.. model.Prop]`) in `ToDto`.
+Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Prop.ToDto()`), with `?.` for nullable types. Flattened properties appear in `ToDto` via their `ReadPath`. In `ToModel`, flattened properties are grouped by parent and the nested object is reconstructed inline (`Parent = new ParentType { Nested = dto.FlatProp, ... }`); nullable parents get a null-safe ternary (`dto.FlatProp is null ? null : new ParentType { ... }`). Renamed properties use `ModelPropertyName` on the model side. DynamoDB/MongoDB abstract collection and array properties use collection spread (`[.. model.Prop]`) in `ToDto`.
 
 **`EmitRepository`** (only when `target.Repository != RepositoryKind.None`) writes a concrete repository class (`{ClassName}Repository.g.cs`):
 
@@ -174,8 +174,12 @@ record PropertyData(
 
 record PropertyTypeData(
     string Type,
-    bool HasTypeMapping,        // true when the type was remapped via [TypeMapping]
-    bool NeedsSpreadAssignment); // true when an abstract collection was remapped to List<T> (DynamoDB/MongoDB)
+    bool HasTypeMapping,              // true when the type was remapped (via [TypeMapping] or collection/array → List<T>)
+    bool HasGenericTypeMapping,       // true when the remapping was a collection/array → List<T> (not a direct [TypeMapping])
+    bool NeedsSpreadAssignment,       // true when an abstract collection was remapped to List<T> (DynamoDB/MongoDB)
+    bool IsEnum,                      // true when the property is an enum type (used for DynamoDB/MongoDB annotations)
+    bool IsNullable,                  // true when the property type is nullable
+    string? EnumCollectionElementType); // non-null for IList<TEnum> / IList<TEnum?>: holds "EnumType" or "EnumType?"
 
 record FlattenedPropertyData(
     string ReadPath,            // model-side read expression, e.g. "Address?.Street"
