@@ -44,6 +44,7 @@ public class TestFixture : IAsyncLifetime
                 return client.GetDatabase("ProductDto");
             })
             .AddTransient<IRepository<Product>, ProductRepository>()
+            .AddTransient<IRepository<Process>, ProcessRepository>()
             .AddTransient<IMongoDbRepositoryContext, MongoDbRepositoryContext>();
 
         _serviceProvider = services.BuildServiceProvider();
