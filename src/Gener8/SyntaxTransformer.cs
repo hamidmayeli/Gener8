@@ -8,6 +8,8 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Gener8;
 
+internal sealed record ClassTargetResult(TargetClass? Target, Diagnostic? Error);
+
 internal static class SyntaxTransformer
 {
     public static bool IsPartialClassWithAttributes(SyntaxNode node)
@@ -17,13 +19,21 @@ internal static class SyntaxTransformer
         return cls.Modifiers.Any(SyntaxKind.PartialKeyword);
     }
 
-    public static TargetClass? ExtractClassTarget(GeneratorSyntaxContext context)
+    public static ClassTargetResult? ExtractClassTarget(GeneratorSyntaxContext context)
     {
         if (context.SemanticModel.GetDeclaredSymbol(context.Node) is not INamedTypeSymbol classSymbol)
             return null;
 
         if (!TryGetFromModelAttributeData(classSymbol, out AttributeData? attr)) return null;
-        if (!TryGetModelSymbol(attr, out INamedTypeSymbol? modelSymbol)) return null;
+
+        if (!TryGetModelSymbol(attr, out INamedTypeSymbol? modelSymbol))
+        {
+            var diagnostic = Diagnostic.Create(
+                Diagnostics.UnresolvedModelType,
+                context.Node.GetLocation(),
+                classSymbol.Name);
+            return new ClassTargetResult(null, diagnostic);
+        }
 
         var ns = classSymbol.ContainingNamespace is { IsGlobalNamespace: false } nsSymbol
             ? nsSymbol.ToDisplayString()
@@ -49,7 +59,7 @@ internal static class SyntaxTransformer
 
         var autoTargets = BuildAutoTargets(builder.AutoTargetSymbols, ns, accessibility, qualifyingNamespaces, repositoryKind);
 
-        return new TargetClass(
+        var target = new TargetClass(
             classSymbol.Name,
             ns,
             accessibility,
@@ -57,6 +67,8 @@ internal static class SyntaxTransformer
             new(modelFullName, modelSymbol.Name, GetPrimaryConstructorParams(modelSymbol)),
             repositoryKind,
             autoTargets);
+
+        return new ClassTargetResult(target, null);
     }
 
     private static IReadOnlyCollection<string> GetQualifyingNamespaces(
@@ -214,6 +226,7 @@ internal static class SyntaxTransformer
 
         if (arg.Kind != TypedConstantKind.Type) return false;
         if (arg.Value is not INamedTypeSymbol ms) return false;
+        if (ms.TypeKind == TypeKind.Error) return false;
 
         modelSymbol = ms;
         return true;

@@ -20,7 +20,8 @@
     <!-- Source generators must live under analyzers/dotnet/cs/, not lib/ -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <!-- NU5128: no lib/ assemblies is intentional for source generators -->
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- RS2008: release tracking is opt-in overhead not needed for a single-project generator -->
+    <NoWarn>$(NoWarn);NU5128;RS2008</NoWarn>
     <!-- Consumers don't need a runtime reference; mark as dev-only -->
     <DevelopmentDependency>true</DevelopmentDependency>
   </PropertyGroup>

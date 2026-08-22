@@ -39,6 +39,17 @@ internal static class GeneratorDriver
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
     }
 
+    // Returns only the diagnostics reported by the generator itself (via ctx.ReportDiagnostic).
+    // Does not throw on compilation errors in the input, so it can be used to test GEN001/GEN999.
+    internal static IReadOnlyList<Diagnostic> RunForDiagnostics(params string[] sources)
+    {
+        var compilation = CreateCompilation(sources);
+        var driver = CSharpGeneratorDriver
+            .Create(new FromModelGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        return driver.GetRunResult().Diagnostics;
+    }
+
     // Use when testing generators that emit code referencing external SDK types (e.g. AWS, MongoDB).
     // Skips the compilation-error check so tests can assert on generated text without providing stubs.
     internal static IReadOnlyDictionary<string, string> RunUnchecked(params string[] sources)

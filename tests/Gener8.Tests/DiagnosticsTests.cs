@@ -1,0 +1,72 @@
+using Microsoft.CodeAnalysis;
+
+namespace Gener8.Tests;
+
+public class DiagnosticsTests
+{
+    [Fact]
+    public void ReportsGEN001WhenModelTypeIsUnresolvable()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            [FromModel(typeof(NonExistentModel))]
+            public partial class MyDto { }
+            """);
+
+        var gen001 = Assert.Single(diagnostics, d => d.Id == "GEN001");
+        Assert.Equal(DiagnosticSeverity.Error, gen001.Severity);
+        Assert.Contains("MyDto", gen001.GetMessage());
+    }
+
+    [Fact]
+    public void NoSourceEmittedForDtoWhenModelTypeIsUnresolvable()
+    {
+        var sources = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            [FromModel(typeof(NonExistentModel))]
+            public partial class MyDto { }
+            """);
+
+        Assert.DoesNotContain(sources.Keys, k => k.Contains("MyDto"));
+    }
+
+    [Fact]
+    public void NoGeneratorDiagnosticsForValidModel()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            public class TheModel { public string Name { get; set; } = ""; }
+            [FromModel(typeof(TheModel))]
+            public partial class TheDto { }
+            """);
+
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
+    public void GEN001IncludesTheDtoClassName()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            [FromModel(typeof(DoesNotExist))]
+            public partial class CustomerDto { }
+            """);
+
+        var gen001 = Assert.Single(diagnostics, d => d.Id == "GEN001");
+        Assert.Contains("CustomerDto", gen001.GetMessage());
+    }
+
+    [Fact]
+    public void GEN001ReportedOncePerUnresolvableDto()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            [FromModel(typeof(MissingA))]
+            public partial class DtoA { }
+            [FromModel(typeof(MissingB))]
+            public partial class DtoB { }
+            """);
+
+        Assert.Equal(2, diagnostics.Count(d => d.Id == "GEN001"));
+    }
+}
