@@ -243,7 +243,7 @@ public class AutoDtoTests
     [Fact]
     public void HandlesNullableComplexProperty()
     {
-        var results = GeneratorDriver.Run("""
+        var results = GeneratorDriver.RunWithNullable("""
             using Gener8;
             namespace MyApp.Models
             {

@@ -154,7 +154,7 @@ public class FlattenTests
     [Fact]
     public void FlattenNullableType_OverriedsRequiredModifier()
     {
-        var results = GeneratorDriver.Run("""
+        var results = GeneratorDriver.RunWithNullable("""
             using Gener8;
             public class Address { public required string City { get; set; } = ""; }
             public class Order { public Address? ShippingAddress { get; set; } }

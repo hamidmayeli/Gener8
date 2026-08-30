@@ -12,8 +12,14 @@ internal static class GeneratorDriver
     /// Throws if the input compilation itself has errors (generator bugs would be masked otherwise).
     /// </summary>
     internal static IReadOnlyDictionary<string, string> Run(params string[] sources)
+        => RunCore(NullableContextOptions.Disable, sources);
+
+    internal static IReadOnlyDictionary<string, string> RunWithNullable(params string[] sources)
+        => RunCore(NullableContextOptions.Enable, sources);
+
+    private static IReadOnlyDictionary<string, string> RunCore(NullableContextOptions nullable, string[] sources)
     {
-        var compilation = CreateCompilation(sources);
+        var compilation = CreateCompilation(sources, nullable);
 
         var generator = new FromModelGenerator();
 
@@ -43,7 +49,7 @@ internal static class GeneratorDriver
     // Does not throw on compilation errors in the input, so it can be used to test GEN001/GEN999.
     internal static IReadOnlyList<Diagnostic> RunForDiagnostics(params string[] sources)
     {
-        var compilation = CreateCompilation(sources);
+        var compilation = CreateCompilation(sources, NullableContextOptions.Disable);
         var driver = CSharpGeneratorDriver
             .Create(new FromModelGenerator())
             .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
@@ -54,7 +60,7 @@ internal static class GeneratorDriver
     // Skips the compilation-error check so tests can assert on generated text without providing stubs.
     internal static IReadOnlyDictionary<string, string> RunUnchecked(params string[] sources)
     {
-        var compilation = CreateCompilation(sources);
+        var compilation = CreateCompilation(sources, NullableContextOptions.Disable);
         var driver = CSharpGeneratorDriver
             .Create(new FromModelGenerator())
             .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
@@ -65,7 +71,7 @@ internal static class GeneratorDriver
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
     }
 
-    private static CSharpCompilation CreateCompilation(string[] sources)
+    private static CSharpCompilation CreateCompilation(string[] sources, NullableContextOptions nullable)
     {
         var syntaxTrees = sources.Select(s => CSharpSyntaxTree.ParseText(s)).ToArray();
 
@@ -82,6 +88,6 @@ internal static class GeneratorDriver
             "TestAssembly",
             syntaxTrees,
             references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: nullable));
     }
 }

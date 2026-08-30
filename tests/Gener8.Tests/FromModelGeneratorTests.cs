@@ -141,4 +141,51 @@ public class FromModelGeneratorTests
 
         Assert.Contains("FromModelAttribute.g.cs", results.Keys);
     }
+
+    // -----------------------------------------------------------------------
+    // Nullable context
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void NullableDisabled_DoesNotEmitNullableDirective()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class MyModel { public string Name { get; set; } = ""; }
+            [FromModel(typeof(MyModel))]
+            public partial class MyDto { }
+            """);
+
+        Assert.DoesNotContain("#nullable enable", results["MyDto.g.cs"]);
+        Assert.DoesNotContain("#nullable enable", results["MyDtoExtensions.g.cs"]);
+    }
+
+    [Fact]
+    public void NullableEnabled_EmitsNullableDirective()
+    {
+        var results = GeneratorDriver.RunWithNullable("""
+            using Gener8;
+            public class MyModel { public string Name { get; set; } = ""; }
+            [FromModel(typeof(MyModel))]
+            public partial class MyDto { }
+            """);
+
+        Assert.Contains("#nullable enable", results["MyDto.g.cs"]);
+        Assert.Contains("#nullable enable", results["MyDtoExtensions.g.cs"]);
+    }
+
+    [Fact]
+    public void NullableDisabled_PreservesNullableValueTypes()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class MyModel { public int? Count { get; set; } public System.DateTime? CreatedAt { get; set; } }
+            [FromModel(typeof(MyModel))]
+            public partial class MyDto { }
+            """);
+
+        var source = results["MyDto.g.cs"];
+        Assert.Contains("int?", source);
+        Assert.Contains("DateTime?", source);
+    }
 }

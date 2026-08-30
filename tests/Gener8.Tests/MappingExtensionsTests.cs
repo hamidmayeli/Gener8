@@ -18,7 +18,7 @@ public class MappingExtensionsTests
     [Fact]
     public void EmitsToModelAndToDtoMethods()
     {
-        var results = GeneratorDriver.Run("""
+        var results = GeneratorDriver.RunWithNullable("""
             using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]
@@ -304,7 +304,7 @@ public class MappingExtensionsTests
     [Fact]
     public void ExtensionMethodsAreNullSafe()
     {
-        var results = GeneratorDriver.Run("""
+        var results = GeneratorDriver.RunWithNullable("""
             using Gener8;
             public class Product { public string Name { get; set; } = ""; }
             [FromModel(typeof(Product))]

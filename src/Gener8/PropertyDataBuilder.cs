@@ -298,6 +298,15 @@ internal sealed class PropertyDataBuilder(
             }
         }
 
+        // True when the ? suffix represents Nullable<T> (a struct) rather than an NRT annotation.
+        // Stripping ? from a value type changes the CLR type (DateTime? != DateTime), so it must
+        // be preserved regardless of the consuming project's nullable reference type setting.
+        var isNullableValueType = isNullable
+            && !hasDirectTypeMapping
+            && !hasGenericTypeMapping
+            && !needsSpreadAssignment
+            && property.Type.IsValueType;
+
         return new(
             typeDisplay,
             hasDirectTypeMapping || hasGenericTypeMapping,
@@ -305,7 +314,8 @@ internal sealed class PropertyDataBuilder(
             needsSpreadAssignment,
             IsEnumType(property),
             isNullable,
-            GetEnumCollectionElementType(property));
+            GetEnumCollectionElementType(property),
+            isNullableValueType);
     }
 
     // Returns the element type display string when the property is a supported collection of enums

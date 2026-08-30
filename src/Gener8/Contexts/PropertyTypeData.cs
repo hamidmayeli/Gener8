@@ -17,5 +17,6 @@ internal sealed record PropertyTypeData(
     bool NeedsSpreadAssignment,
     bool IsEnum,
     bool IsNullable,
-    string? EnumCollectionElementType = null
+    string? EnumCollectionElementType = null,
+    bool IsNullableValueType = false
     );

@@ -23,9 +23,13 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
                 transform: static (ctx, _) => SyntaxTransformer.ExtractClassTarget(ctx))
             .Where(static result => result is not null);
 
+        var nullableEnabled = context.CompilationProvider
+            .Select(static (c, _) => c.Options.NullableContextOptions != NullableContextOptions.Disable);
+
         // Report diagnostics for known errors; emit source for successful targets.
-        context.RegisterSourceOutput(pipeline, static (ctx, result) =>
+        context.RegisterSourceOutput(pipeline.Combine(nullableEnabled), static (ctx, pair) =>
         {
+            var (result, nullable) = pair;
             if (result!.Error is not null)
             {
                 ctx.ReportDiagnostic(result.Error);
@@ -34,7 +38,7 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
 
             try
             {
-                SourceProducer.Emit(ctx, result.Target!);
+                SourceProducer.Emit(ctx, result.Target!, nullable);
             }
             catch (Exception ex)
             {
@@ -78,12 +82,13 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
             .Collect();
 
         context.RegisterSourceOutput(
-            autoDtoTargets.Combine(userAnnotatedModelNames),
+            autoDtoTargets.Combine(userAnnotatedModelNames).Combine(nullableEnabled),
             static (ctx, pair) =>
             {
+                var ((targets, modelNames), nullable) = pair;
                 try
                 {
-                    SourceProducer.EmitAutoDtos(ctx, pair.Left, pair.Right);
+                    SourceProducer.EmitAutoDtos(ctx, targets, modelNames, nullable);
                 }
                 catch (Exception ex)
                 {
