@@ -438,6 +438,7 @@ public partial class CatalogDto { }
 - Pass property names as `nameof(...)` expressions (same style as `Ignore`).
 - `required` is suppressed for force-nullable properties — a nullable property cannot be meaningfully required.
 - **GEN002** is raised if a listed property is already nullable on the model.
+- **GEN003** is raised if a model property is of type `ISet<T>` and has a typed initializer (e.g. `= new HashSet<T>()`). Collection-expression initializers (`= []`) are safe and do not trigger this error. Fix by removing the initializer and setting the default in a constructor instead.
 
 ### Extensions class changes
 
@@ -489,6 +490,33 @@ Version = model.Version,
 // or, with TypeMapping:
 Version = model.Version.ToDto(),
 ```
+
+---
+
+## 9. Auto type mapping (`DtoNamespaces`)
+
+When `DtoNamespaces` lists one or more namespaces, the generator automatically infers type mappings for any model property whose type lives in one of those namespaces (or the model's own namespace). Each matching type is remapped to `{TypeName}Dto`, and a companion DTO is auto-generated for it — no explicit `[TypeMapping]` or hand-written partial class needed.
+
+```csharp
+// Models/Order.cs  (namespace MyApp.Models)
+public class Order  { public int Id { get; set; } public Customer Customer { get; set; } }
+public class Customer { public string Name { get; set; } = ""; }
+
+// DTOs/OrderDto.cs
+[FromModel(typeof(Order), DtoNamespaces = ["MyApp.Models"])]
+internal partial class OrderDto { }
+
+// Generator emits:
+//   OrderDto.g.cs      — Id, Customer (typed as CustomerDto)
+//   CustomerDto.g.cs   — Name          (auto-generated companion DTO)
+//   OrderDtoExtensions.g.cs  — ToModel / ToDto with chained CustomerDto.ToModel() / .ToDto()
+```
+
+- The model's own namespace is always qualifying; `DtoNamespaces` adds extras.
+- Existing explicit `[TypeMapping]` attributes take priority over inferred mappings.
+- Auto-generated companion DTOs are plain (no `Ignore`, `Flatten`, `ForceNullable`, etc.).
+- Collections and arrays are handled the same as for explicit type mappings — `List<Customer>` → `List<CustomerDto>` with spread assignment.
+- Use `[IgnoreTypeMapping(typeof(T))]` to opt a specific type out of auto mapping.
 
 ---
 

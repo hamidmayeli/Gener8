@@ -30,7 +30,9 @@ public FromModelAttribute(Type modelType)
 | `IncludeInherited` | `bool` | `false` | When `true`, properties from base classes are also copied. Most-derived property wins when a name is overridden. |
 | `Flatten` | `string[]` | `[]` | Property names whose types will be inlined (one level deep) into the DTO instead of being mapped as a whole. |
 | `FlattenPrefix` | `FlattenPrefix` | `FlattenPrefix.Parent` | Controls how the parent property name is prepended to flattened property names. |
-| `Repository` | `RepositoryType` | `RepositoryType.None` | When set to `DynamoDb` or `MongoDb`, generates a concrete repository scaffold for the DTO. |
+| `Repository` | `RepositoryType` | `RepositoryType.None` | When set to `DynamoDb`, `MongoDb`, or `Custom`, generates a concrete repository scaffold for the DTO. |
+| `DtoNamespaces` | `string[]` | `[]` | Additional namespaces to treat as qualifying for auto type mapping. Types in these namespaces (and the model's own namespace) are automatically remapped to `{TypeName}Dto`, and companion DTOs for those types are auto-generated. |
+| `ForceNullable` | `string[]` | `[]` | Property names to make nullable in the DTO even when the model property is non-nullable. |
 
 ### Example
 
@@ -41,7 +43,9 @@ public FromModelAttribute(Type modelType)
     IncludeInherited = true,
     Flatten          = [nameof(Order.BillingAddress)],
     FlattenPrefix    = FlattenPrefix.Gaped,
-    Repository       = RepositoryType.DynamoDb)]
+    Repository       = RepositoryType.DynamoDb,
+    DtoNamespaces    = ["MyApp.Models"],
+    ForceNullable    = [nameof(Order.Customer)])]
 internal partial class OrderDto { }
 ```
 
@@ -103,6 +107,34 @@ public RenamePropertyAttribute(string sourceName, string targetName)
 [RenameProperty(nameof(Product.InternalSku), "Sku")]
 [RenameProperty(nameof(Product.DisplayName), "Name")]
 internal partial class ProductDto { }
+```
+
+---
+
+## `[IgnoreTypeMapping]`
+
+**Full name:** `Gener8.IgnoreTypeMappingAttribute`  
+**Target:** `class`  
+**AllowMultiple:** `true`
+
+Suppresses automatic type mapping for a specific type when `DtoNamespaces` auto-mapping is active. Use this when a type in a qualifying namespace should not be remapped to a `{TypeName}Dto` and no companion DTO should be auto-generated for it.
+
+### Constructor
+
+```csharp
+public IgnoreTypeMappingAttribute(Type ignoredType)
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `ignoredType` | `Type` | The type to exclude from auto type mapping. |
+
+### Example
+
+```csharp
+[FromModel(typeof(Order), DtoNamespaces = ["MyApp.Models"])]
+[IgnoreTypeMapping(typeof(Metadata))]   // Metadata stays as-is; no MetadataDto generated
+internal partial class OrderDto { }
 ```
 
 ---

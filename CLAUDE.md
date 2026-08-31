@@ -14,7 +14,7 @@ src/Gener8/
 ├── PropertyDataBuilder.cs   — builds the PropertyData list from a model symbol
 ├── DefaultSource.cs         — injected attribute/enum/base-class source files
 └── Contexts/                — immutable records used across the incremental pipeline
-    ├── TargetClass.cs       — record: ClassName, Namespace, Accessibility, Properties, Model, Repository
+    ├── TargetClass.cs       — record: ClassName, Namespace, Accessibility, Properties, Model, Repository, AutoDtoTargets
     ├── ModelClass.cs        — record: FullName, Name, PrimaryConstructorParams
     ├── PropertyData.cs      — record: TypeData, Name, accessors, ModelPropertyName, IsUserDeclared, Flattened
     ├── PropertyTypeData.cs  — record: Type, HasTypeMapping, HasGenericTypeMapping, NeedsSpreadAssignment, IsEnum, IsNullable, EnumCollectionElementType
@@ -64,6 +64,7 @@ internal partial class TheDto {}
 - Accessor kinds preserved: `set`, `init`; constructor-backed get-only properties are emitted with forced `init`
 - Constructor mapper: when the model has a non-implicit constructor whose parameters all match public property names (exact or camelCase→PascalCase), `ToModel` emits `new(dto.P1, dto.P2, ...)` instead of object-initializer syntax; positional records and hand-written constructors both supported; mixed types (some ctor params + extra settable props) emit `new(dto.P1) { ExtraProp = dto.ExtraProp }`
 - `[TypeMapping(typeof(A), typeof(ADto))]` — remaps property types; extension methods generate chained `.ToModel()`/`.ToDto()` calls
+- `[IgnoreTypeMapping(typeof(T))]` — suppresses auto type mapping for `T` when `DtoNamespaces` is active
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; flattened props appear in `ToDto` (via path); `ToModel` reconstructs the nested parent object from the spread DTO properties (null-safe ternary for nullable parents)
 - Flattened + type-mapped properties are skipped in both extension methods (cannot chain through a flattened path)
@@ -72,6 +73,7 @@ internal partial class TheDto {}
 - MongoDB: `enum` properties automatically get `[BsonRepresentation(BsonType.String)]`
 - `Repository = RepositoryType.DynamoDb|MongoDb|Custom` — generates a concrete `{ClassName}Repository` class (partial, matching DTO accessibility); `DynamoDb` inherits `Gener8.DynamoDbRepository<TModel, TDto>` and takes `IDynamoDbRepositoryContext` (wraps `IDynamoDBContext`); `MongoDb` inherits `Gener8.MongoDbRepository<TModel, TDto>` and takes `IMongoDbRepositoryContext` (wraps `IMongoDatabase`); `Custom` inherits `Gener8.RepositoryBase<TModel, TDto>` (declared `partial`) and takes `IRepositoryContext` (empty interface — consumer provides implementation); context interfaces and base classes are emitted conditionally (once per kind per compilation); SDK base classes override `ToModel`/`ToDto` via generated extension methods; consumer must reference `AWSSDK.DynamoDBv2` or `MongoDB.Driver` for DynamoDb/MongoDb respectively
 - `ForceNullable = [...]` — makes non-nullable model properties nullable in the DTO; suppresses `required`; raises GEN002 if a listed property is already nullable; the extensions class is always `partial`; a `private static partial GetDefault{Prop}(DtoType dto)` method stub is emitted for each force-nullable property; `ToModel` uses `dto.Prop is null ? GetDefault{Prop}(dto) : {non-null-rhs}` pattern; `ToDto` reads the model directly (no null-conditional, model property is non-nullable)
+- `DtoNamespaces = [...]` — qualifying namespaces for auto type mapping; types in these namespaces (plus the model's own namespace) are automatically remapped to `{TypeName}Dto` and companion DTOs are auto-generated; explicit `[TypeMapping]` takes priority; `[IgnoreTypeMapping(typeof(T))]` opts a specific type out; raises GEN003 if an `ISet<T>` property with a typed initializer is encountered
 - Generator targets `netstandard2.0`; uses Roslyn incremental API (`IIncrementalGenerator`)
 
 ## Build, packaging, and CI

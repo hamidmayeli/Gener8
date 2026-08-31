@@ -53,9 +53,12 @@ The `set`/`init` accessor, the `required` modifier, and property initializers ar
 |---|---|
 | Exclude specific properties | `Ignore = [nameof(Model.Prop)]` |
 | Map a nested type to a DTO type | `[TypeMapping(typeof(Address), typeof(AddressDto))]` |
+| Auto-map and generate companion DTOs | `DtoNamespaces = ["MyApp.Models"]` |
+| Suppress a single auto type mapping | `[IgnoreTypeMapping(typeof(T))]` |
 | Include properties from base classes | `IncludeInherited = true` |
 | Inline (flatten) a nested object | `Flatten = [nameof(Model.Prop)]` |
 | Rename a property in the output | `[RenameProperty("OldName", "NewName")]` |
+| Make non-nullable properties nullable in the DTO | `ForceNullable = [nameof(Model.Prop)]` |
 | Mapping extension methods | Generated automatically alongside every DTO |
 | Generate a repository scaffold | `Repository = RepositoryType.DynamoDb`, `RepositoryType.MongoDb`, or `RepositoryType.Custom` |
 

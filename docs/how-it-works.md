@@ -37,11 +37,12 @@ Before any user code is examined, the generator calls `RegisterPostInitializatio
 
 | File | Contents |
 |---|---|
-| `RepositoryType.g.cs` | `RepositoryType` enum (`None`, `DynamoDb`, `MongoDb`) |
+| `RepositoryType.g.cs` | `RepositoryType` enum (`None`, `DynamoDb`, `MongoDb`, `Custom`) |
 | `FlattenPrefix.g.cs` | `FlattenPrefix` enum |
 | `FromModelAttribute.g.cs` | `[FromModel]` attribute class (references both enums) |
 | `TypeMappingAttribute.g.cs` | `[TypeMapping]` attribute class |
 | `RenamePropertyAttribute.g.cs` | `[RenameProperty]` attribute class |
+| `IgnoreTypeMappingAttribute.g.cs` | `[IgnoreTypeMapping]` attribute class |
 | `IRepository.g.cs` | `Gener8.IRepository<TModel>` interface |
 
 The SDK-heavy abstract base classes (`DynamoDbRepository<TModel, TDto>` and `MongoDbRepository<TModel, TDto>`) are **not** injected here. They are emitted conditionally in a separate `RegisterSourceOutput` step after all DTOs have been examined, ensuring they appear at most once per compilation and only when needed.
@@ -64,8 +65,10 @@ For each class that passes the filter, the generator accesses the semantic model
 
 1. **Resolve the DTO class symbol** — obtains the `INamedTypeSymbol` for the partial class.
 2. **Find `[FromModel]`** — locates the attribute and reads the `typeof()` argument to get the model type symbol.
-3. **Extract configuration** — reads `Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited` from the attribute; reads `[TypeMapping]` and `[RenameProperty]` attributes from the class.
+3. **Extract configuration** — reads `Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited`, `DtoNamespaces`, `ForceNullable` from the attribute; reads `[TypeMapping]`, `[RenameProperty]`, and `[IgnoreTypeMapping]` attributes from the class.
 4. **Detect constructor params** — `PropertyDataBuilder` inspects the model's non-implicit constructors. If a constructor is found whose parameters all resolve to public properties (by exact name or camelCase→PascalCase), those property names are recorded as constructor-backed. This drives two downstream effects: the properties are included even if get-only on the model, and `ToModel` uses constructor-style initialization.
+4b. **Infer type mappings** — when `DtoNamespaces` is set, `PropertyDataBuilder` scans model properties and automatically adds type mappings for any type whose namespace is in the qualifying set, unless it is excluded by `[IgnoreTypeMapping]` or already covered by an explicit `[TypeMapping]`. Each inferred mapping also registers the type as an **auto-target** — the transformer synthesises a `TargetClass` for it (using the same accessibility and namespace as the DTO) and returns it in `AutoDtoTargets`. The pipeline emits these companion DTOs as extra source files.
+
 5. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names to handle overrides when `IncludeInherited = true`. Traversal stops at `System.Object`.
 6. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags. Constructor-backed get-only properties are forced to `IsInitOnly = true` so the DTO emits `init`.
 7. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record (carrying the parent name, fully-qualified parent type, and nested property name needed for `ToModel` reconstruction).
@@ -159,7 +162,8 @@ record TargetClass(
     string Accessibility,
     IReadOnlyCollection<PropertyData> Properties,
     ModelClass Model,
-    RepositoryKind Repository);
+    RepositoryKind Repository,
+    IReadOnlyCollection<TargetClass> AutoDtoTargets); // companion DTOs inferred via DtoNamespaces
 
 record ModelClass(
     string FullName,                                  // global::-prefixed fully-qualified name
