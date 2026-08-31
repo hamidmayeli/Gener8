@@ -77,6 +77,7 @@ public class TypeMappingTests
     [Theory]
     [InlineData("List")]
     [InlineData("IList")]
+    [InlineData("HashSet")]
     public void MapsSupportedGenericCollectionElementTypeToDto(string collectionType)
     {
         var results = GeneratorDriver.Run($$"""
@@ -96,6 +97,31 @@ public class TypeMappingTests
         var source = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
         Assert.Contains($"public System.Collections.Generic.{collectionType}<AddressDto> ShippingAddresses", source);
         Assert.DoesNotContain($"public System.Collections.Generic.{collectionType}<Address> ShippingAddresses", source);
+    }
+
+    [Fact]
+    public void ISetWithTypeMappingRemapsElementTypeAndConcreteContainerToHashSet()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Address { public string Street { get; set; } = ""; }
+
+            [FromModel(typeof(Address))]
+            public partial class AddressDto { }
+            public class Order { public ISet<Address> ShippingAddresses { get; set; } }
+
+            [FromModel(typeof(Order))]
+            [TypeMapping(typeof(Address), typeof(AddressDto))]
+            public partial class OrderDto { }
+            """);
+
+        var dto = Assert.Single(results, r => r.Key == "OrderDto.g.cs").Value;
+        Assert.Contains("public System.Collections.Generic.HashSet<AddressDto> ShippingAddresses", dto);
+        Assert.DoesNotContain("ISet", dto);
+
+        var ext = Assert.Single(results, r => r.Key == "OrderDtoExtensions.g.cs").Value;
+        Assert.Contains("(System.Collections.Generic.HashSet<Address>)[.. dto.ShippingAddresses.Select(m => m.ToModel())]", ext);
     }
 
     [Fact]

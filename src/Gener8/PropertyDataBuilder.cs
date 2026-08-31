@@ -16,9 +16,11 @@ internal sealed class PropertyDataBuilder(
 {
     private readonly List<INamedTypeSymbol> _autoTargetSymbols = [];
     private readonly List<string> _alreadyNullablePropertyNames = [];
+    private readonly List<string> _iSetWithInitializerPropertyNames = [];
 
     public IReadOnlyCollection<INamedTypeSymbol> AutoTargetSymbols => _autoTargetSymbols;
     public IReadOnlyList<string> AlreadyNullablePropertyNames => _alreadyNullablePropertyNames;
+    public IReadOnlyList<string> ISetWithInitializerPropertyNames => _iSetWithInitializerPropertyNames;
 
     public IReadOnlyCollection<PropertyData> GetProperties()
     {
@@ -79,6 +81,12 @@ internal sealed class PropertyDataBuilder(
                     _alreadyNullablePropertyNames.Add(property.Name);
                     isForceNullable = false;
                 }
+
+                // Collection-expression initializers (e.g. = []) adapt to any target type and are safe.
+                // Only typed initializers (e.g. = new HashSet<T>()) are problematic.
+                if (IsISetType(property.Type) && GetInitializer(property) is { } isetInit
+                    && !isetInit.StartsWith("[", System.StringComparison.Ordinal))
+                    _iSetWithInitializerPropertyNames.Add(property.Name);
 
                 var dtoPropName = renameMap.TryGetValue(property.Name, out var renamed) ? renamed : property.Name;
                 var isUserDeclared = existingDtoProps.Contains(dtoPropName);
@@ -302,6 +310,15 @@ internal sealed class PropertyDataBuilder(
             hasGenericTypeMapping = true;
         }
 
+        // ISet<T> with element TypeMapping → ToModel needs a cast since ISet<T> is not a valid
+        // collection-expression target type in C#.
+        string? toModelCastType = null;
+        if (hasGenericTypeMapping && IsISetType(property.Type))
+        {
+            var originalElem = ((INamedTypeSymbol)property.Type).TypeArguments[0].ToDisplayString();
+            toModelCastType = $"System.Collections.Generic.HashSet<{originalElem}>";
+        }
+
         if ((isParentNullable || forceNullable) && !typeDisplay.EndsWith("?"))
             typeDisplay += "?";
 
@@ -334,7 +351,8 @@ internal sealed class PropertyDataBuilder(
             IsEnumType(property),
             isNullable,
             GetEnumCollectionElementType(property),
-            isNullableValueType);
+            isNullableValueType,
+            toModelCastType);
     }
 
     // Returns the element type display string when the property is a supported collection of enums
@@ -423,6 +441,10 @@ internal sealed class PropertyDataBuilder(
         return false;
     }
 
+    private static bool IsISetType(ITypeSymbol type)
+        => type is INamedTypeSymbol { IsGenericType: true } namedType
+            && namedType.ConstructedFrom.ToDisplayString() == "System.Collections.Generic.ISet<T>";
+
     private static bool IsSupportedMappedCollection(INamedTypeSymbol namedType)
         => namedType.ConstructedFrom.ToDisplayString() is
             "System.Collections.Generic.List<T>" or
@@ -430,12 +452,17 @@ internal sealed class PropertyDataBuilder(
             "System.Collections.Generic.ICollection<T>" or
             "System.Collections.Generic.IList<T>" or
             "System.Collections.Generic.IReadOnlyCollection<T>" or
-            "System.Collections.Generic.IReadOnlyList<T>";
+            "System.Collections.Generic.IReadOnlyList<T>" or
+            "System.Collections.Generic.ISet<T>" or
+            "System.Collections.Generic.HashSet<T>";
 
     private static string BuildGenericTypeDisplay(INamedTypeSymbol namedType, string mappedElementType)
     {
         var constructedFromDisplay = namedType.ConstructedFrom.ToDisplayString();
-        var genericTypeName = constructedFromDisplay.Substring(0, constructedFromDisplay.IndexOf('<'));
+        // ISet<T> cannot be instantiated; remap to the concrete HashSet<T> in the DTO.
+        var genericTypeName = constructedFromDisplay == "System.Collections.Generic.ISet<T>"
+            ? "System.Collections.Generic.HashSet"
+            : constructedFromDisplay.Substring(0, constructedFromDisplay.IndexOf('<'));
         var nullableSuffix = namedType.NullableAnnotation == NullableAnnotation.Annotated ? "?" : string.Empty;
         return $"{genericTypeName}<{mappedElementType}>{nullableSuffix}";
     }
@@ -463,8 +490,9 @@ internal sealed class PropertyDataBuilder(
     }
 
     // Remaps IReadOnlyCollection<T>, IReadOnlyList<T>, IEnumerable<T>, IList<T>, ICollection<T>
-    // to System.Collections.Generic.List<T>. Returns true and sets baseRemapped (without any
-    // trailing '?') when a remapping is warranted; caller handles nullability.
+    // to System.Collections.Generic.List<T>, and ISet<T> to System.Collections.Generic.HashSet<T>.
+    // Returns true and sets baseRemapped (without any trailing '?') when a remapping is warranted;
+    // caller handles nullability.
     private static bool TryRemapToConcreteCollection(
         ITypeSymbol type,
         string? mappedElementType,
@@ -476,6 +504,14 @@ internal sealed class PropertyDataBuilder(
             return false;
 
         var constructedFromDisplay = namedType.ConstructedFrom.ToDisplayString();
+
+        if (constructedFromDisplay == "System.Collections.Generic.ISet<T>")
+        {
+            var typeArg = mappedElementType ?? namedType.TypeArguments[0].ToDisplayString();
+            baseRemapped = $"System.Collections.Generic.HashSet<{typeArg}>";
+            return true;
+        }
+
         var isCollectionInterface = constructedFromDisplay is
             "System.Collections.Generic.IReadOnlyCollection<T>" or
             "System.Collections.Generic.IReadOnlyList<T>" or
@@ -485,8 +521,8 @@ internal sealed class PropertyDataBuilder(
 
         if (!isCollectionInterface) return false;
 
-        var typeArg = mappedElementType ?? namedType.TypeArguments[0].ToDisplayString();
-        baseRemapped = $"System.Collections.Generic.List<{typeArg}>";
+        var typeArgForList = mappedElementType ?? namedType.TypeArguments[0].ToDisplayString();
+        baseRemapped = $"System.Collections.Generic.List<{typeArgForList}>";
         return true;
     }
 

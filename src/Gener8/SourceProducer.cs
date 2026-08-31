@@ -188,7 +188,7 @@ internal static class SourceProducer
                 {
                     var nc = typeData.IsNullable ? "?" : "";
                     args.Append(typeData.HasGenericTypeMapping
-                        ? BuildProjectedCollectionMapping($"dto.{dtoPropName}", "ToModel", typeData.IsNullable)
+                        ? BuildProjectedCollectionMapping($"dto.{dtoPropName}", "ToModel", typeData.IsNullable, typeData.ToModelCastType)
                         : $"dto.{dtoPropName}{nc}.ToModel()");
                 }
                 else
@@ -230,7 +230,7 @@ internal static class SourceProducer
                         var nc = prop.TypeData.IsNullable ? "?" : "";
                         dtoRead = prop.TypeData.HasTypeMapping
                             ? prop.TypeData.HasGenericTypeMapping
-                                ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
+                                ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable, prop.TypeData.ToModelCastType)
                                 : $"dto.{prop.Name}{nc}.ToModel()"
                             : $"dto.{prop.Name}";
                     }
@@ -261,7 +261,7 @@ internal static class SourceProducer
                     var nc = prop.TypeData.IsNullable ? "?" : "";
                     dtoRead = prop.TypeData.HasTypeMapping
                         ? prop.TypeData.HasGenericTypeMapping
-                            ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
+                            ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable, prop.TypeData.ToModelCastType)
                             : $"dto.{prop.Name}{nc}.ToModel()"
                         : $"dto.{prop.Name}";
                 }
@@ -406,12 +406,15 @@ internal static class SourceProducer
     private static string StripNullable(string type)
         => type.EndsWith("?") ? type.Substring(0, type.Length - 1) : type;
 
-    private static string BuildProjectedCollectionMapping(string source, string mappingMethod, bool isNullable)
+    private static string BuildProjectedCollectionMapping(string source, string mappingMethod, bool isNullable, string? castType = null)
     {
         var projectedCollection = $"{source}.Select(m => m.{mappingMethod}())";
-        return isNullable
-            ? $"{source} is null ? null : [.. {projectedCollection}]"
+        var collectionExpr = castType is not null
+            ? $"({castType})[.. {projectedCollection}]"
             : $"[.. {projectedCollection}]";
+        return isNullable
+            ? $"{source} is null ? null : {collectionExpr}"
+            : collectionExpr;
     }
 
     // Builds the non-null branch RHS for a force-nullable property in ToModel.
@@ -421,7 +424,7 @@ internal static class SourceProducer
         var name = prop.Name;
         if (prop.TypeData.NeedsSpreadAssignment)
             return prop.TypeData.HasGenericTypeMapping
-                ? $"[.. dto.{name}.Select(m => m.ToModel())]"
+                ? BuildProjectedCollectionMapping($"dto.{name}", "ToModel", false, prop.TypeData.ToModelCastType)
                 : $"[.. dto.{name}]";
         if (prop.TypeData.HasTypeMapping)
             return $"dto.{name}.ToModel()";

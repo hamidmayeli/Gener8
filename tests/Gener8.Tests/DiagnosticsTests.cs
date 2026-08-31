@@ -114,4 +114,65 @@ public class DiagnosticsTests
 
         Assert.Equal(2, diagnostics.Count(d => d.Id == "GEN001"));
     }
+
+    [Fact]
+    public void ReportsGEN003WhenISetPropertyHasInitializer()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class TheModel { public ISet<string> Tags { get; set; } = new HashSet<string>(); }
+            [FromModel(typeof(TheModel))]
+            public partial class TheDto { }
+            """);
+
+        var gen003 = Assert.Single(diagnostics, d => d.Id == "GEN003");
+        Assert.Equal(DiagnosticSeverity.Error, gen003.Severity);
+        Assert.Contains("Tags", gen003.GetMessage());
+        Assert.Contains("TheModel", gen003.GetMessage());
+    }
+
+    [Fact]
+    public void NoGEN003WhenISetUsesCollectionExpressionInitializer()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class TheModel { public ISet<string> Tags { get; set; } = []; }
+            [FromModel(typeof(TheModel))]
+            public partial class TheDto { }
+            """);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "GEN003");
+    }
+
+    [Fact]
+    public void NoSourceEmittedWhenGEN003IsReported()
+    {
+        var sources = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class TheModel { public ISet<string> Tags { get; set; } = new HashSet<string>(); }
+            [FromModel(typeof(TheModel))]
+            public partial class TheDto { }
+            """);
+
+        Assert.DoesNotContain(sources.Keys, k => k.Contains("TheDto"));
+    }
+
+    [Fact]
+    public void GEN003ReportedForNullableISetWithInitializer()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            using System.Collections.Generic;
+            #nullable enable
+            public class TheModel { public ISet<string>? Tags { get; set; } = new HashSet<string>(); }
+            [FromModel(typeof(TheModel))]
+            public partial class TheDto { }
+            """);
+
+        var gen003 = Assert.Single(diagnostics, d => d.Id == "GEN003");
+        Assert.Contains("Tags", gen003.GetMessage());
+    }
 }

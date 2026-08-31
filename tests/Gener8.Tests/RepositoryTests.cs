@@ -441,4 +441,52 @@ public class RepositoryTests
         Assert.Contains("IReadOnlyCollection", source);
         Assert.DoesNotContain("List<int>", source);
     }
+
+    [Fact]
+    public void DynamoDb_ISetRemappedToHashSet()
+    {
+        var results = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Product { public ISet<string> Tags { get; set; } }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains("System.Collections.Generic.HashSet<string>", source);
+        Assert.DoesNotContain("ISet", source);
+    }
+
+    [Fact]
+    public void DynamoDb_ISetUsesSpreadInToDto()
+    {
+        var results = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Product { public ISet<string> Tags { get; set; } }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDtoExtensions.g.cs"];
+        Assert.Contains("[.. model.Tags]", source);
+    }
+
+    [Theory]
+    [InlineData("ISet<CategoryEnum>", "EnumListToStringListConverter")]
+    [InlineData("ISet<CategoryEnum?>", "NullableEnumListToStringListConverter")]
+    public void ISetEnumPropertyHasCorrectConverterInDynamoDb(string propertyType, string converterType)
+    {
+        var results = GeneratorDriver.RunUnchecked($$"""
+            using Gener8;
+            using System.Collections.Generic;
+            public enum CategoryEnum { A, B, C }
+            public class Product { public {{propertyType}} Category { get; set; } }
+            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
+            public partial class ProductDto { }
+            """);
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains($"[DynamoDBProperty(typeof({converterType}<CategoryEnum>))]", source);
+    }
 }

@@ -69,6 +69,18 @@ internal static class SyntaxTransformer
             return new ClassTargetResult(null, errors);
         }
 
+        if (builder.ISetWithInitializerPropertyNames.Count > 0)
+        {
+            var errors = new List<Diagnostic>(builder.ISetWithInitializerPropertyNames.Count);
+            foreach (var propName in builder.ISetWithInitializerPropertyNames)
+                errors.Add(Diagnostic.Create(
+                    Diagnostics.ISetPropertyWithInitializer,
+                    context.Node.GetLocation(),
+                    propName,
+                    modelSymbol.Name));
+            return new ClassTargetResult(null, errors);
+        }
+
         var autoTargets = BuildAutoTargets(builder.AutoTargetSymbols, ns, accessibility, qualifyingNamespaces, repositoryKind);
 
         var target = new TargetClass(

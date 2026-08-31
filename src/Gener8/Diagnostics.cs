@@ -20,6 +20,14 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor ISetPropertyWithInitializer = new(
+        id: "GEN003",
+        title: "ISet<T> property has initializer",
+        messageFormat: "Property '{0}' on model '{1}' is of type ISet<T> and has a property initializer. Initializers are copied verbatim and may not compile in the generated DTO. Remove the initializer and set the default value in a constructor instead.",
+        category: "Gener8",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor UnexpectedError = new(
         id: "GEN999",
         title: "Unexpected generator error",
