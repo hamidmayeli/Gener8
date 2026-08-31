@@ -461,48 +461,6 @@ internal static class SourceProducer
         }
     }
 
-    public static void EmitRepositoryBaseClasses(SourceProductionContext context, ImmutableArray<RepositoryKind> kinds)
-    {
-        var emittedDynamo = false;
-        var emittedMongo = false;
-        var emittedCustom = false;
-
-        foreach (var kind in kinds)
-        {
-            if (kind == RepositoryKind.DynamoDb && !emittedDynamo)
-            {
-                emittedDynamo = true;
-
-                context.AddSource(DefaultSource.EnumToStringConverter.Filename,
-                    SourceText.From(DefaultSource.EnumToStringConverter.Code, Encoding.UTF8));
-
-                context.AddSource(DefaultSource.NullableEnumToStringConverter.Filename,
-                    SourceText.From(DefaultSource.NullableEnumToStringConverter.Code, Encoding.UTF8));
-
-                context.AddSource(DefaultSource.EnumListToStringListConverter.Filename,
-                    SourceText.From(DefaultSource.EnumListToStringListConverter.Code, Encoding.UTF8));
-
-                context.AddSource(DefaultSource.NullableEnumListToStringListConverter.Filename,
-                    SourceText.From(DefaultSource.NullableEnumListToStringListConverter.Code, Encoding.UTF8));
-
-                context.AddSource(DefaultSource.DynamoDbRepositoryBaseClass.Filename,
-                    SourceText.From(DefaultSource.DynamoDbRepositoryBaseClass.Code, Encoding.UTF8));
-            }
-            else if (kind == RepositoryKind.MongoDb && !emittedMongo)
-            {
-                emittedMongo = true;
-                context.AddSource(DefaultSource.MongoDbRepositoryBaseClass.Filename,
-                    SourceText.From(DefaultSource.MongoDbRepositoryBaseClass.Code, Encoding.UTF8));
-            }
-            else if (kind == RepositoryKind.Custom && !emittedCustom)
-            {
-                emittedCustom = true;
-                context.AddSource(DefaultSource.CustomRepositoryBaseClass.Filename,
-                    SourceText.From(DefaultSource.CustomRepositoryBaseClass.Code, Encoding.UTF8));
-            }
-        }
-    }
-
     private static void EmitRepository(SourceProductionContext context, TargetClass target, bool nullableEnabled)
     {
         var sb = new StringBuilder();

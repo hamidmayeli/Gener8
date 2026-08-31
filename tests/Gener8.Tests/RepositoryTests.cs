@@ -35,39 +35,6 @@ public class RepositoryTests
     }
 
     [Fact]
-    public void EmitsDynamoDbBaseClassFile()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
-            public partial class ProductDto { }
-            """);
-
-        Assert.Contains("DynamoDbRepository.g.cs", results.Keys);
-    }
-
-    [Fact]
-    public void EmitsNullableEnumStringConverter()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
-            public partial class ProductDto { }
-            """);
-
-        Assert.Contains("NullableEnumToStringConverter.g.cs", results.Keys);
-    }
-
-    [Fact]
-    public void EmitsEnumStringConverter()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
-            public partial class ProductDto { }
-            """);
-
-        Assert.Contains("EnumToStringConverter.g.cs", results.Keys);
-    }
-
-    [Fact]
     public void DynamoDbRepositoryHasCorrectClassName()
     {
         var results = GeneratorDriver.RunUnchecked(ProductModel + """
@@ -218,21 +185,6 @@ public class RepositoryTests
         Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
-    [Fact]
-    public void DynamoDbBaseClassEmittedOnlyOnceForMultipleDtos()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            public class Order { public int Id { get; set; } }
-            [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
-            public partial class ProductDto { }
-            [FromModel(typeof(Order), Repository = RepositoryType.DynamoDb)]
-            public partial class OrderDto { }
-            """);
-
-        var dynamo = results.Keys.Where(k => k == "DynamoDbRepository.g.cs").ToList();
-        Assert.Single(dynamo);
-    }
-
     // ---- MongoDB ----
 
     [Fact]
@@ -244,17 +196,6 @@ public class RepositoryTests
             """);
 
         Assert.Contains("ProductRepository.g.cs", results.Keys);
-    }
-
-    [Fact]
-    public void EmitsMongoDbBaseClassFile()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
-            public partial class ProductDto { }
-            """);
-
-        Assert.Contains("MongoDbRepository.g.cs", results.Keys);
     }
 
     [Fact]
@@ -311,21 +252,6 @@ public class RepositoryTests
     }
 
     [Fact]
-    public void MongoDbBaseClassEmittedOnlyOnceForMultipleDtos()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            public class Order { public int Id { get; set; } }
-            [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
-            public partial class ProductDto { }
-            [FromModel(typeof(Order), Repository = RepositoryType.MongoDb)]
-            public partial class OrderDto { }
-            """);
-
-        var mongo = results.Keys.Where(k => k == "MongoDbRepository.g.cs").ToList();
-        Assert.Single(mongo);
-    }
-
-    [Fact]
     public void EnumPropertyHasCorrectConverterInMongoDb()
     {
         var results = GeneratorDriver.RunUnchecked(ProductModel + """
@@ -365,21 +291,10 @@ public class RepositoryTests
         Assert.Contains("ProductRepository.g.cs", results.Keys);
     }
 
-    [Fact]
-    public void EmitsCustomBaseClassFile()
-    {
-        var results = GeneratorDriver.RunUnchecked(ProductModel + """
-            [FromModel(typeof(Product), Repository = RepositoryType.Custom)]
-            public partial class ProductDto { }
-            """);
-
-        Assert.Contains("CustomRepository.g.cs", results.Keys);
-    }
-
     // ---- Mixed (both kinds in the same compilation) ----
 
     [Fact]
-    public void BothBaseClassesEmittedWhenBothKindsUsed()
+    public void BothRepositoryFilesEmittedWhenBothKindsUsed()
     {
         var results = GeneratorDriver.RunUnchecked(ProductModel + """
             public class Order { public int Id { get; set; } }
@@ -389,8 +304,8 @@ public class RepositoryTests
             public partial class OrderDto { }
             """);
 
-        Assert.Contains("DynamoDbRepository.g.cs", results.Keys);
-        Assert.Contains("MongoDbRepository.g.cs", results.Keys);
+        Assert.Contains("ProductRepository.g.cs", results.Keys);
+        Assert.Contains("OrderRepository.g.cs", results.Keys);
     }
 
     // ---- Abstract collection remapping (DynamoDB cannot instantiate interfaces) ----

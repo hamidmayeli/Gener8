@@ -21,6 +21,9 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Gener8/Gener8.csproj" />
+    <Project Path="src/Gener8.Abstractions/Gener8.Abstractions.csproj" />
+    <Project Path="src/Gener8.Extensions.DynamoDB/Gener8.Extensions.DynamoDB.csproj" />
+    <Project Path="src/Gener8.Extensions.MongoDB/Gener8.Extensions.MongoDB.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CustomDb.Integration.Tests/CustomDb.Integration.Tests.csproj" Id="aefdb9d8-62e1-4b32-84e5-4d0e38d05e12" />

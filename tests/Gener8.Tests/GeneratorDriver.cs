@@ -9,7 +9,7 @@ internal static class GeneratorDriver
     /// <summary>
     /// Compiles <paramref name="sources"/>, runs <see cref="FromModelGenerator"/>, and returns
     /// every source file the generator emitted (keyed by hint name).
-    /// Throws if the input compilation itself has errors (generator bugs would be masked otherwise).
+    /// Throws if the post-generation compilation has errors.
     /// </summary>
     internal static IReadOnlyDictionary<string, string> Run(params string[] sources)
         => RunCore(NullableContextOptions.Disable, sources);
@@ -17,7 +17,7 @@ internal static class GeneratorDriver
     /// <summary>
     /// Compiles <paramref name="sources"/> with nullable enabled, runs <see cref="FromModelGenerator"/>, and returns
     /// every source file the generator emitted (keyed by hint name).
-    /// Throws if the input compilation itself has errors (generator bugs would be masked otherwise).
+    /// Throws if the post-generation compilation has errors.
     /// </summary>
     internal static IReadOnlyDictionary<string, string> RunWithNullable(params string[] sources)
         => RunCore(NullableContextOptions.Enable, sources);
@@ -58,9 +58,6 @@ internal static class GeneratorDriver
 
         var generator = new FromModelGenerator();
 
-        // RunGeneratorsAndUpdateCompilation returns a compilation that includes the
-        // generator-injected sources (e.g. FromModelAttribute from RegisterPostInitializationOutput).
-        // Check errors on that, not on the pre-generation compilation.
         var driver = CSharpGeneratorDriver
             .Create(generator)
             .RunGeneratorsAndUpdateCompilation(compilation, out var updated, out _);
@@ -85,12 +82,19 @@ internal static class GeneratorDriver
         var syntaxTrees = sources.Select(s => CSharpSyntaxTree.ParseText(s)).ToArray();
 
         // Minimal reference set: mscorlib + System.Runtime (enough for most generator inputs).
+        // Gener8.Abstractions is included so [FromModel], [TypeMapping], etc. are available
+        // in test source code — they are no longer injected by the generator at runtime.
+        // netstandard.dll is required because Abstractions.dll targets netstandard2.0; without it
+        // Roslyn can't resolve System.Attribute's provenance and treats [FromModel] as an error type,
+        // causing the generator to silently skip all annotated classes.
         var references = new[]
         {
             MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
             MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
             MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
             MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(FromModelAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
         };
 
         return CSharpCompilation.Create(

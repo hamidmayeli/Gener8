@@ -69,12 +69,4 @@ public class RenamePropertyTests
         var source = Assert.Single(results, r => r.Key == "ProductDto.g.cs").Value;
         Assert.Contains("public string Name", source);
     }
-
-    [Fact]
-    public void EmitsRenamePropertyAttributeSourceFile()
-    {
-        var results = GeneratorDriver.Run("public class Empty { }");
-
-        Assert.Contains("RenamePropertyAttribute.g.cs", results.Keys);
-    }
 }

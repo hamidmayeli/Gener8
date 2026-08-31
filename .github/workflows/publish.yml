@@ -71,8 +71,18 @@ jobs:
           fi
           echo "All test suites passed"
 
-      - name: Pack
+      # Pack all three publishable packages
+      - name: Pack Gener8.Abstractions
+        run: dotnet pack src/Gener8.Abstractions/Gener8.Abstractions.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
+
+      - name: Pack Gener8 (generator + bundled abstractions)
         run: dotnet pack src/Gener8/Gener8.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
+
+      - name: Pack Gener8.Extensions.DynamoDB
+        run: dotnet pack src/Gener8.Extensions.DynamoDB/Gener8.Extensions.DynamoDB.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
+
+      - name: Pack Gener8.Extensions.MongoDB
+        run: dotnet pack src/Gener8.Extensions.MongoDB/Gener8.Extensions.MongoDB.csproj --no-build -c Release -p:Version=${{ inputs.version }} -o ./nupkg
 
       - name: NuGet login (OIDC → temp API key)
         uses: NuGet/login@v1

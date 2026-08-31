@@ -8,48 +8,52 @@ The generator runs entirely at **compile time** — it reads the semantic model 
 
 ---
 
+## Package architecture
+
+```
+Gener8 (NuGet)
+├── analyzers/dotnet/cs/Gener8.dll          — the Roslyn source generator
+└── lib/netstandard2.0/Gener8.Abstractions.dll  — attributes, enums, interfaces, base classes
+
+Gener8.Extensions.DynamoDB (NuGet)           — optional, for RepositoryType.DynamoDb
+└── lib/netstandard2.0/Gener8.Extensions.DynamoDB.dll
+    ├── Gener8.Converters.EnumToStringConverter<T>
+    ├── Gener8.Converters.NullableEnumToStringConverter<T>
+    ├── Gener8.Converters.EnumListToStringListConverter<T>
+    ├── Gener8.Converters.NullableEnumListToStringListConverter<T>
+    ├── Gener8.IDynamoDbRepositoryContext
+    └── Gener8.DynamoDbRepository<TModel, TDto>
+
+Gener8.Extensions.MongoDB (NuGet)            — optional, for RepositoryType.MongoDb
+└── lib/netstandard2.0/Gener8.Extensions.MongoDB.dll
+    ├── Gener8.IMongoDbRepositoryContext
+    └── Gener8.MongoDbRepository<TModel, TDto>
+```
+
+`Gener8.Abstractions` is also published as a standalone package. Its types are available to consumers via the core `Gener8` package without a separate install.
+
+---
+
 ## Generator pipeline
 
 ```
-RegisterPostInitializationOutput
-  → injects FromModelAttribute, TypeMappingAttribute, RenamePropertyAttribute,
-    FlattenPrefix, IRepository<T> into every consumer
-
 SyntaxProvider.CreateSyntaxProvider
   predicate  → IsPartialClassWithAttributes  (syntax-only fast filter)
   transform  → ExtractClassTarget            (semantic analysis)
   .Where(not null)
-                             ↓
-            ┌────────────────┴────────────────────────────────┐
-            │                                                  │
-  RegisterSourceOutput                         .Select(t => t.Repository)
-  → Emit (per-DTO: model + extensions          .Where(k => k != None)
-          + concrete repository)               .Collect()
-                                                      │
-                                               RegisterSourceOutput
-                                               → EmitRepositoryBaseClasses
-                                                 (once per kind per compilation)
+                         ↓
+        ┌────────────────┴────────────────────────────────┐
+        │                                                  │
+RegisterSourceOutput                          .SelectMany(t => t.AutoDtoTargets)
+→ Emit (per-DTO: model + extensions           .Collect()
+        + concrete repository)                     │
+                                             RegisterSourceOutput
+                                             → EmitAutoDtos
 ```
 
-### Stage 1 — Attribute injection
+> **Note**: `RegisterPostInitializationOutput` is no longer used. All attributes, enums, and repository contracts that were previously injected as source come from `Gener8.Abstractions.dll` (included in the `Gener8` NuGet under `lib/netstandard2.0/`). Similarly, SDK-specific base classes and converters come from the extension packages — the generator no longer emits these as source files.
 
-Before any user code is examined, the generator calls `RegisterPostInitializationOutput` to inject source files into the consumer's compilation:
-
-| File | Contents |
-|---|---|
-| `RepositoryType.g.cs` | `RepositoryType` enum (`None`, `DynamoDb`, `MongoDb`, `Custom`) |
-| `FlattenPrefix.g.cs` | `FlattenPrefix` enum |
-| `FromModelAttribute.g.cs` | `[FromModel]` attribute class (references both enums) |
-| `TypeMappingAttribute.g.cs` | `[TypeMapping]` attribute class |
-| `RenamePropertyAttribute.g.cs` | `[RenameProperty]` attribute class |
-| `IgnoreTypeMappingAttribute.g.cs` | `[IgnoreTypeMapping]` attribute class |
-| `IRepository.g.cs` | `Gener8.IRepository<TModel>` interface |
-
-The SDK-heavy abstract base classes (`DynamoDbRepository<TModel, TDto>` and `MongoDbRepository<TModel, TDto>`) are **not** injected here. They are emitted conditionally in a separate `RegisterSourceOutput` step after all DTOs have been examined, ensuring they appear at most once per compilation and only when needed.
-
-This means consumers never need a separate runtime package — all injected types exist only during compilation.
-
-### Stage 2 — Syntax filter (`IsPartialClassWithAttributes`)
+### Stage 1 — Syntax filter (`IsPartialClassWithAttributes`)
 
 The predicate runs on every syntax node in the compilation. It performs only **syntax-level** checks (no semantic model access, which would be expensive):
 
@@ -59,24 +63,24 @@ The predicate runs on every syntax node in the compilation. It performs only **s
 
 Any class that fails these checks is discarded immediately. This keeps the expensive semantic stage lean.
 
-### Stage 3 — Semantic transform (`ExtractClassTarget`)
+### Stage 2 — Semantic transform (`ExtractClassTarget`)
 
 For each class that passes the filter, the generator accesses the semantic model:
 
 1. **Resolve the DTO class symbol** — obtains the `INamedTypeSymbol` for the partial class.
-2. **Find `[FromModel]`** — locates the attribute and reads the `typeof()` argument to get the model type symbol.
+2. **Find `[FromModel]`** — locates the attribute (resolved from `Gener8.Abstractions.dll`) and reads the `typeof()` argument to get the model type symbol.
 3. **Extract configuration** — reads `Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited`, `DtoNamespaces`, `ForceNullable` from the attribute; reads `[TypeMapping]`, `[RenameProperty]`, and `[IgnoreTypeMapping]` attributes from the class.
 4. **Detect constructor params** — `PropertyDataBuilder` inspects the model's non-implicit constructors. If a constructor is found whose parameters all resolve to public properties (by exact name or camelCase→PascalCase), those property names are recorded as constructor-backed. This drives two downstream effects: the properties are included even if get-only on the model, and `ToModel` uses constructor-style initialization.
-4b. **Infer type mappings** — when `DtoNamespaces` is set, `PropertyDataBuilder` scans model properties and automatically adds type mappings for any type whose namespace is in the qualifying set, unless it is excluded by `[IgnoreTypeMapping]` or already covered by an explicit `[TypeMapping]`. Each inferred mapping also registers the type as an **auto-target** — the transformer synthesises a `TargetClass` for it (using the same accessibility and namespace as the DTO) and returns it in `AutoDtoTargets`. The pipeline emits these companion DTOs as extra source files.
+4b. **Infer type mappings** — when `DtoNamespaces` is set, `PropertyDataBuilder` scans model properties and automatically adds type mappings for any type whose namespace is in the qualifying set, unless excluded by `[IgnoreTypeMapping]` or already covered by an explicit `[TypeMapping]`. Each inferred mapping also registers the type as an **auto-target** — the transformer synthesises a `TargetClass` for it and returns it in `AutoDtoTargets`. The pipeline emits these companion DTOs as extra source files.
 
-5. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names to handle overrides when `IncludeInherited = true`. Traversal stops at `System.Object`.
-6. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags. Constructor-backed get-only properties are forced to `IsInitOnly = true` so the DTO emits `init`.
-7. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record (carrying the parent name, fully-qualified parent type, and nested property name needed for `ToModel` reconstruction).
-8. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs, including `ModelClass.PrimaryConstructorParams` (the ordered property names for constructor-style `ToModel`).
+5. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names for `IncludeInherited = true`. Traversal stops at `System.Object`.
+6. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags. Constructor-backed get-only properties are forced to `IsInitOnly = true`.
+7. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record.
+8. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs.
 
-### Stage 4 — Code generation (`Emit`)
+### Stage 3 — Code generation (`Emit`)
 
-Takes a `ClassTarget` and writes up to three `StringBuilder`-based C# source files.
+Takes a `TargetClass` and writes up to three `StringBuilder`-based C# source files.
 
 **`EmitModel`** writes the partial class (`{ClassName}.g.cs`):
 
@@ -93,6 +97,8 @@ Takes a `ClassTarget` and writes up to three `StringBuilder`-based C# source fil
 [}]
 ```
 
+For DynamoDB repositories, enum properties get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]` (from `Gener8.Converters`). For MongoDB, enum properties get `[BsonRepresentation(BsonType.String)]`.
+
 **`EmitExtensions`** writes the mapping helpers (`{ClassName}Extensions.g.cs`):
 
 ```
@@ -105,45 +111,15 @@ using System.Linq;
   {extAccessibility} static class {ClassName}Extensions
   {
       [return: NotNullIfNotNull(nameof(dto))]
-      public static {ModelFullName}? ToModel(this {ClassName}? dto)
-          // constructor style when PrimaryConstructorParams is set:
-          => dto is null ? null : new(dto.P1, dto.P2);
-          // or object-initializer style otherwise:
-          => dto is null ? null : new {ModelFullName} { ... };
+      public static {ModelFullName}? ToModel(this {ClassName}? dto) => ...;
 
       [return: NotNullIfNotNull(nameof(model))]
-      public static {ClassName}? ToDto(this {ModelFullName}? model)
-          => model is null ? null : new {ClassName} { ... };
+      public static {ClassName}? ToDto(this {ModelFullName}? model) => ...;
   }
 [}]
 ```
 
-**`ToModel` style selection** — if `ModelClass.PrimaryConstructorParams` is set, `ToModel` emits `new(dto.P1, dto.P2, ...)` (positional constructor call) for the constructor-param properties. Any remaining settable properties are emitted as an object-initializer block after the constructor call: `new(dto.Name) { Order = dto.Order, }`. When `PrimaryConstructorParams` is not set, the full object-initializer form is used.
-
-Type-mapped properties generate chained calls (`dto.Prop.ToModel()` / `model.Prop.ToDto()`), with `?.` for nullable types. Flattened properties appear in `ToDto` via their `ReadPath`. In `ToModel`, flattened properties are grouped by parent and the nested object is reconstructed inline (`Parent = new ParentType { Nested = dto.FlatProp, ... }`); nullable parents get a null-safe ternary (`dto.FlatProp is null ? null : new ParentType { ... }`). Renamed properties use `ModelPropertyName` on the model side. DynamoDB/MongoDB abstract collection and array properties use collection spread (`[.. model.Prop]`) in `ToDto`.
-
-**`EmitRepository`** (only when `target.Repository != RepositoryKind.None`) writes a concrete repository class (`{ClassName}Repository.g.cs`):
-
-```
-// <auto-generated/>
-#nullable enable
-
-[namespace X {]
-  {accessibility} partial class {ClassName}Repository
-      : Gener8.DynamoDbRepository<{ModelFullName}, {ClassName}>   // or MongoDbRepository
-  {
-      // DynamoDb: public {ClassName}Repository(IDynamoDbRepositoryContext context) : base(context) {}
-      // MongoDb:  public {ClassName}Repository(IMongoDbRepositoryContext context) : base(context, "{ClassName}") {}
-
-      protected override {ModelFullName} ToModel({ClassName} dto)    => dto.ToModel();
-      protected override {ClassName}     ToDto({ModelFullName} model) => model.ToDto();
-  }
-[}]
-```
-
-**`EmitRepositoryBaseClasses`** is called once per compilation (via a `.Collect()`-based `RegisterSourceOutput`) and emits `DynamoDbRepository.g.cs` and/or `MongoDbRepository.g.cs` only if at least one DTO in the compilation requested each kind.
-
-The hint name for each file is `{Namespace}.{ClassName}[Extensions|Repository].g.cs` (or without namespace prefix for the global namespace).
+**`EmitRepository`** (only when `target.Repository != RepositoryKind.None`) writes a concrete repository class (`{ClassName}Repository.g.cs`). The generated class inherits from `Gener8.DynamoDbRepository<TModel, TDto>`, `Gener8.MongoDbRepository<TModel, TDto>`, or `Gener8.RepositoryBase<TModel, TDto>` — these types now come from the extension packages or `Gener8.Abstractions`, not injected source.
 
 ---
 
@@ -151,67 +127,13 @@ The hint name for each file is `{Namespace}.{ClassName}[Extensions|Repository].g
 
 All records live under the `Gener8.Contexts` namespace and use value-equality semantics for Roslyn incremental caching.
 
-### `TargetClass`
-
-Carries everything `Emit` needs for one DTO:
-
-```csharp
-record TargetClass(
-    string ClassName,
-    string? Namespace,
-    string Accessibility,
-    IReadOnlyCollection<PropertyData> Properties,
-    ModelClass Model,
-    RepositoryKind Repository,
-    IReadOnlyCollection<TargetClass> AutoDtoTargets); // companion DTOs inferred via DtoNamespaces
-
-record ModelClass(
-    string FullName,                                  // global::-prefixed fully-qualified name
-    string Name,                                      // simple class name, used for the repository class name
-    ImmutableArray<string> PrimaryConstructorParams); // ordered property names for ctor-style ToModel; default = use object initializer
-```
-
-`RepositoryKind` is an internal enum (`None`, `DynamoDb`, `MongoDb`, `Custom`) — a mirror of the injected `RepositoryType` enum that avoids a dependency on the generated attribute source.
-
-### `PropertyData`
-
-Per-property code-generation data, composed of two sub-records:
-
-```csharp
-record PropertyData(
-    PropertyTypeData TypeData,
-    string Name,
-    bool HasGetter,
-    bool HasSetter,
-    bool IsInitOnly,
-    bool IsRequired,
-    string? Initializer,
-    string? ModelPropertyName,  // original model name when [RenameProperty] was applied; null = same as Name
-    bool IsUserDeclared,        // true when the DTO already declares this property; skip in EmitModel, keep in mappings
-    FlattenedPropertyData? Flattened);  // non-null only for properties introduced via Flatten
-
-record PropertyTypeData(
-    string Type,
-    bool HasTypeMapping,              // true when the type was remapped (via [TypeMapping] or collection/array → List<T>)
-    bool HasGenericTypeMapping,       // true when the remapping was a collection/array → List<T> (not a direct [TypeMapping])
-    bool NeedsSpreadAssignment,       // true when an abstract collection was remapped to List<T> (DynamoDB/MongoDB)
-    bool IsEnum,                      // true when the property is an enum type (used for DynamoDB/MongoDB annotations)
-    bool IsNullable,                  // true when the property type is nullable
-    string? EnumCollectionElementType); // non-null for IList<TEnum> / IList<TEnum?>: holds "EnumType" or "EnumType?"
-
-record FlattenedPropertyData(
-    string ReadPath,            // model-side read expression, e.g. "Address?.Street"
-    string ParentName,          // parent property name, e.g. "ShippingAddress"
-    string ParentTypeFullName,  // global::-prefixed parent type for 'new ParentType { }' in ToModel
-    string NestedPropertyName,  // property name on the nested type, e.g. "Street"
-    bool OriginallyNullable);   // true when nested type was nullable before parent nullability was applied
-```
+See the source files under `src/Gener8/Contexts/` for full details of `TargetClass`, `ModelClass`, `PropertyData`, `PropertyTypeData`, and `FlattenedPropertyData`.
 
 ---
 
 ## Incremental caching
 
-Because the transform returns immutable records with value-equality semantics (C# `record` types), Roslyn can cache results between compilations. If a source file that contributed a `TargetClass` has not changed, the cached record is reused and `Emit` is not re-invoked — only the changed inputs flow through the pipeline.
+Because the transform returns immutable records with value-equality semantics (C# `record` types), Roslyn can cache results between compilations. If a source file that contributed a `TargetClass` has not changed, the cached record is reused and `Emit` is not re-invoked.
 
 ---
 
@@ -224,3 +146,5 @@ The generator itself targets `netstandard2.0` to be compatible with all Roslyn h
 ## `netstandard2.0` target
 
 Source generators must target `netstandard2.0` because the Roslyn SDK that hosts them may run on older .NET Framework versions (e.g., in Visual Studio on Windows). The consuming project can target any framework.
+
+`Gener8.Abstractions`, `Gener8.Extensions.DynamoDB`, and `Gener8.Extensions.MongoDB` also target `netstandard2.0` to ensure broad compatibility.

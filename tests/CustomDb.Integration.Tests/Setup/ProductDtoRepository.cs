@@ -1,31 +1,30 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 
 namespace CustomDb.Integration.Tests.Setup.Models;
 
 public partial class ProductRepository
 {
-    protected override string CreateWhereClauseForId() => "WHERE Id = @Id";
+    protected string CreateWhereClauseForId() => "WHERE Id = @Id";
 
-    protected override string GetDeleteQuery() => "DELETE FROM Products";
+    protected string GetDeleteQuery() => "DELETE FROM Products";
 
-    protected override object GetIdFromEntity(Product entity)
-        => entity.Id;
+    protected object GetIdFromEntity(Product entity) => entity.Id;
 
-    protected override string GetSelectQuery() => "SELECT Id, Name, Description, CategoryName, CategoryDescription, Sizes FROM Products";
+    protected string GetSelectQuery() => "SELECT Id, Name, Description, CategoryName, CategoryDescription, Sizes FROM Products";
 
-    protected override string GetUpsertQuery()
+    protected string GetUpsertQuery()
         => """
         MERGE INTO Products AS target
         USING (SELECT @Id AS Id, @Name AS Name, @Description AS Description, @CategoryName AS CategoryName, @CategoryDescription AS CategoryDescription, @Sizes AS Sizes) AS source
         ON target.Id = source.Id
-        WHEN MATCHED THEN 
+        WHEN MATCHED THEN
             UPDATE SET Name = source.Name, Description = source.Description, CategoryName = source.CategoryName, CategoryDescription = source.CategoryDescription, Sizes = source.Sizes
         WHEN NOT MATCHED THEN
-            INSERT (Id, Name, Description, CategoryName, CategoryDescription, Sizes) 
+            INSERT (Id, Name, Description, CategoryName, CategoryDescription, Sizes)
             VALUES (source.Id, source.Name, source.Description, source.CategoryName, source.CategoryDescription, source.Sizes);
         """;
 
-    protected override ProductDto ToDto(SqlDataReader reader)
+    protected ProductDto ReadDto(SqlDataReader reader)
         => new()
         {
             Id = reader.GetGuid(reader.GetOrdinal("Id")),
@@ -36,7 +35,7 @@ public partial class ProductRepository
             Sizes = [.. reader.GetString(reader.GetOrdinal("Sizes")).Split(',').Select(int.Parse)]
         };
 
-    protected override void AddAllParameters(Product entity, SqlCommand command)
+    protected void AddAllParameters(Product entity, SqlCommand command)
     {
         command.Parameters.AddWithValue("@Id", entity.Id);
         command.Parameters.AddWithValue("@Name", entity.Name);

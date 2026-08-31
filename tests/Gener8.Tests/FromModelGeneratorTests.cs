@@ -134,14 +134,6 @@ public class FromModelGeneratorTests
         Assert.Contains("public partial class MyDto", source);
     }
 
-    [Fact]
-    public void EmitsAttributeSourceFile()
-    {
-        var results = GeneratorDriver.Run("public class Empty { }");
-
-        Assert.Contains("FromModelAttribute.g.cs", results.Keys);
-    }
-
     // -----------------------------------------------------------------------
     // Nullable context
     // -----------------------------------------------------------------------

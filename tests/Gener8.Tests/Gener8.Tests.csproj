@@ -1,11 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
@@ -19,13 +17,13 @@
     </PackageReference>
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
-
   <ItemGroup>
+    <!-- Plain compile reference: tests directly instantiate FromModelGenerator -->
     <ProjectReference Include="..\..\src\Gener8\Gener8.csproj" />
+    <!-- Abstractions: needed so GeneratorDriver can pass it as a metadata reference in test compilations -->
+    <ProjectReference Include="..\..\src\Gener8.Abstractions\Gener8.Abstractions.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
-
 </Project>

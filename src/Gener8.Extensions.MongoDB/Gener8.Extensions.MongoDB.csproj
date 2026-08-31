@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      MongoDB.Driver 3.x targets netstandard2.1 and net6.0+ (not netstandard2.0).
+      Use netstandard2.1 as the minimum to satisfy the package requirement.
+    -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet metadata -->
+    <PackageId>Gener8.Extensions.MongoDB</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Hamid Mayeli</Authors>
+    <Description>MongoDB extension for Gener8: abstract repository base class. Requires MongoDB.Driver.</Description>
+    <PackageTags>source-generator;roslyn;dto;mongodb;code-generation;c#</PackageTags>
+    <PackageProjectUrl>https://github.com/hamidmayeli/from-model</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hamidmayeli/from-model</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>gener8.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="README.md" />
+    <None Include="../../gener8.png" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Driver" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Gener8.Abstractions\Gener8.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
