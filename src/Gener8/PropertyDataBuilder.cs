@@ -292,6 +292,7 @@ internal sealed class PropertyDataBuilder(
 
         var hasGenericTypeMapping = false;
         string? mappedCollectionElementType = null;
+        string? typeMappedToDtoMethodName = null;
         var typeDisplay = hasDirectTypeMapping ? mappedType! : originalType;
 
         // When a TypeMapping is applied to a nullable source property, propagate nullability
@@ -299,11 +300,17 @@ internal sealed class PropertyDataBuilder(
         if (hasDirectTypeMapping && isNullable && !typeDisplay.EndsWith("?"))
             typeDisplay += "?";
 
+        if (hasDirectTypeMapping)
+            typeMappedToDtoMethodName = ComputeTypeMappedMethodName(typeForLookup, mappedType!);
+
         if (!hasDirectTypeMapping && TryGetMappedCollectionType(property.Type, typeMappings, out var collectionTypeMapping))
         {
             typeDisplay = collectionTypeMapping.Value.TypeDisplay;
             mappedCollectionElementType = collectionTypeMapping.Value.ElementTypeDisplay;
             hasGenericTypeMapping = true;
+            if (property.Type is INamedTypeSymbol { IsGenericType: true, Arity: 1 } collType)
+                typeMappedToDtoMethodName = ComputeTypeMappedMethodName(
+                    collType.TypeArguments[0].ToDisplayString(), mappedCollectionElementType);
         }
 
         // Handle T[] arrays: map element type and convert to List<TDto>.
@@ -314,6 +321,7 @@ internal sealed class PropertyDataBuilder(
             var baseList = $"System.Collections.Generic.List<{mappedArrElem}>";
             typeDisplay = isNullable ? baseList + "?" : baseList;
             hasGenericTypeMapping = true;
+            typeMappedToDtoMethodName = ComputeTypeMappedMethodName(arrElemType.ToDisplayString(), mappedArrElem);
         }
 
         // ISet<T> with element TypeMapping → ToModel needs a cast since ISet<T> is not a valid
@@ -358,7 +366,8 @@ internal sealed class PropertyDataBuilder(
             isNullable,
             GetEnumCollectionElementType(property),
             isNullableValueType,
-            toModelCastType);
+            toModelCastType,
+            typeMappedToDtoMethodName);
     }
 
     // Returns the element type display string when the property is a supported collection of enums
@@ -677,5 +686,25 @@ internal sealed class PropertyDataBuilder(
             return propSyntax.Initializer.Value.ToString();
 
         return null;
+    }
+
+    // Extracts the simple (unqualified) type name from a fully-qualified display string.
+    private static string GetSimpleName(string displayName)
+    {
+        var lastDot = displayName.LastIndexOf('.');
+        return lastDot >= 0 ? displayName.Substring(lastDot + 1) : displayName;
+    }
+
+    // Computes the method name to call on the target DTO type given the source model type.
+    // Mirrors SyntaxTransformer.ComputeToDtoMethodName but works with fully-qualified display strings.
+    private static string ComputeTypeMappedMethodName(string sourceTypeDisplay, string targetDtoDisplay)
+    {
+        var src = sourceTypeDisplay.EndsWith("?") ? sourceTypeDisplay.Substring(0, sourceTypeDisplay.Length - 1) : sourceTypeDisplay;
+        var tgt = targetDtoDisplay.EndsWith("?") ? targetDtoDisplay.Substring(0, targetDtoDisplay.Length - 1) : targetDtoDisplay;
+        var modelSimple = GetSimpleName(src);
+        var dtoSimple = GetSimpleName(tgt);
+        if (dtoSimple.Length > modelSimple.Length && dtoSimple.StartsWith(modelSimple, System.StringComparison.Ordinal))
+            return "To" + dtoSimple.Substring(modelSimple.Length);
+        return "ToDto";
     }
 }

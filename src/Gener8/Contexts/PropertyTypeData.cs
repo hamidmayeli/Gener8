@@ -19,5 +19,6 @@ internal sealed record PropertyTypeData(
     bool IsNullable,
     string? EnumCollectionElementType = null,
     bool IsNullableValueType = false,
-    string? ToModelCastType = null
+    string? ToModelCastType = null,
+    string? TypeMappedToDtoMethodName = null
     );

@@ -202,8 +202,22 @@ internal partial class OrderDto { }
 
 For every DTO, the generator automatically emits a companion static class `{DtoName}Extensions` with two extension methods:
 
-- `ToModel(this DtoType dto)` — maps the DTO back to the original model type
-- `ToDto(this ModelType model)` — maps the model to the DTO type
+- `ToModel(this DtoType dto)` — maps the DTO back to the original model type; always named `ToModel`
+- `To{Suffix}(this ModelType model)` — maps the model to the DTO type; the method name is derived from the DTO class name (see below)
+
+### Method naming convention
+
+The `ToModel` method is always called `ToModel`. The model-to-DTO direction uses the **suffix** of the DTO class name relative to the model class name:
+
+| Model | DTO class | Generated method |
+|---|---|---|
+| `Product` | `ProductDto` | `ToDto` |
+| `Product` | `ProductView` | `ToView` |
+| `Product` | `ProductSummary` | `ToSummary` |
+| `Order` | `OrderResponse` | `ToResponse` |
+| `Order` | `InvoiceLine` | `ToDto` *(fallback — no prefix match)* |
+
+The rule: if the DTO class name starts with the model class name, the suffix after the model name becomes `To{Suffix}`. Otherwise it falls back to `ToDto`.
 
 ```csharp
 public class Product { public string Name { get; set; } = ""; public decimal Price { get; set; } }
@@ -222,6 +236,16 @@ internal partial class ProductDto { }
 //     public static ProductDto? ToDto(this Product? model)
 //         => model is null ? null : new ProductDto { Name = model.Name, Price = model.Price };
 // }
+
+[FromModel(typeof(Product))]
+internal partial class ProductView { }
+
+// Generated ProductViewExtensions:
+// internal static class ProductViewExtensions
+// {
+//     public static Product? ToModel(this ProductView? dto) => ...
+//     public static ProductView? ToView(this Product? model) => ...
+// }
 ```
 
 Both methods accept and return nullable types. `[return: NotNullIfNotNull]` lets the compiler prove the return is non-null whenever the input is non-null, so callers with non-null references need no null-check.
@@ -230,7 +254,7 @@ When the model type uses a constructor (positional record or any class whose con
 
 The extension class accessibility mirrors the DTO: `public` DTOs get `public` extensions, everything else gets `internal`.
 
-**With `[TypeMapping]`** — mapped properties generate chained calls rather than direct assignment. Null-conditional `?.` is used automatically for nullable mapped properties:
+**With `[TypeMapping]`** — mapped properties generate chained calls rather than direct assignment. The chained method name respects the suffix convention of the nested DTO. Null-conditional `?.` is used automatically for nullable mapped properties:
 
 ```csharp
 [FromModel(typeof(Order))]
@@ -239,6 +263,13 @@ internal partial class OrderDto { }
 
 // ToModel:  ShippingAddress = dto.ShippingAddress.ToModel(),
 // ToDto:    ShippingAddress = model.ShippingAddress.ToDto(),
+
+[FromModel(typeof(Order))]
+[TypeMapping(typeof(Address), typeof(AddressView))]
+internal partial class OrderView { }
+
+// ToModel:  ShippingAddress = dto.ShippingAddress.ToModel(),
+// ToView:   ShippingAddress = model.ShippingAddress.ToView(),
 ```
 
 **With `[RenameProperty]`** — the correct side is used in each method:
@@ -252,7 +283,7 @@ internal partial class ProductDto { }
 // ToDto:    Sku = model.InternalSku,
 ```
 
-**With `Flatten`** — flattened properties appear in `ToDto` via their nested path; `ToModel` reconstructs the nested parent object inline from the spread DTO properties:
+**With `Flatten`** — flattened properties appear in `ToDto`/`ToView` via their nested path; `ToModel` reconstructs the nested parent object inline from the spread DTO properties:
 
 ```csharp
 [FromModel(typeof(Order), Flatten = [nameof(Order.ShippingAddress)])]
@@ -323,6 +354,8 @@ internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product,
     protected override ProductDto ToDto  (Product    model) => model.ToDto();
 }
 ```
+
+> **Naming note** — the `ToDto` override signature is fixed (it overrides the abstract base). The body delegates to the generated extension method, so if your DTO is `ProductView`, the body calls `model.ToView()` instead of `model.ToDto()`.
 
 The constructor accepts an `IDynamoDbRepositoryContext` (which wraps `IDynamoDBContext`) and delegates all CRUD operations to the `DynamoDbRepository<TModel, TDto>` base class. The base also implements `ICompositeKeyRepository<TModel>`, which extends `IRepository<TModel>` with two-key `GetByIdAsync` and `DeleteByIdAsync` overloads.
 

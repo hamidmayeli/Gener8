@@ -311,7 +311,7 @@ internal static class SourceProducer
 
         // ToDto: model -> dto
         if (nullableEnabled) sb.AppendLine($"    [return: NotNullIfNotNull(nameof(model))]");
-        sb.AppendLine($"    public static {target.ClassName}{q} ToDto(this {target.Model.FullName}{q} model)");
+        sb.AppendLine($"    public static {target.ClassName}{q} {target.ToDtoMethodName}(this {target.Model.FullName}{q} model)");
         sb.AppendLine($"        => model is null ? null : new {target.ClassName}");
         sb.AppendLine($"        {{");
         foreach (var prop in target.Properties)
@@ -334,32 +334,34 @@ internal static class SourceProducer
                 {
                     // The model property is non-nullable (ForceNullable only makes the DTO nullable).
                     // No null-conditional on the model side.
+                    var toDtoMethod = prop.TypeData.TypeMappedToDtoMethodName ?? "ToDto";
                     if (prop.TypeData.NeedsSpreadAssignment)
                     {
                         var src = $"model.{modelPropName}";
                         rhs = prop.TypeData.HasGenericTypeMapping
-                            ? $"[.. {src}.Select(m => m.ToDto())]"
+                            ? $"[.. {src}.Select(m => m.{toDtoMethod}())]"
                             : $"[.. {src}]";
                     }
                     else
                     {
                         rhs = prop.TypeData.HasTypeMapping
                             ? prop.TypeData.HasGenericTypeMapping
-                                ? BuildProjectedCollectionMapping($"model.{modelPropName}", "ToDto", false)
-                                : $"model.{modelPropName}.ToDto()"
+                                ? BuildProjectedCollectionMapping($"model.{modelPropName}", toDtoMethod, false)
+                                : $"model.{modelPropName}.{toDtoMethod}()"
                             : $"model.{modelPropName}";
                     }
                 }
                 else
                 {
                     var nc = prop.TypeData.Type.EndsWith("?") ? "?" : "";
+                    var toDtoMethod = prop.TypeData.TypeMappedToDtoMethodName ?? "ToDto";
                     if (prop.TypeData.NeedsSpreadAssignment)
                     {
                         // Abstract collection (IReadOnlyCollection<T> etc.) remapped to List<T>.
                         // Use collection expression spread; handle nullable model property with null guard.
                         var collectionSource = $"model.{modelPropName}";
                         var projectedCollection = prop.TypeData.HasGenericTypeMapping
-                            ? $"{collectionSource}.Select(m => m.ToDto())"
+                            ? $"{collectionSource}.Select(m => m.{toDtoMethod}())"
                             : collectionSource;
 
                         rhs = prop.TypeData.Type.EndsWith("?")
@@ -370,8 +372,8 @@ internal static class SourceProducer
                     {
                         rhs = prop.TypeData.HasTypeMapping
                             ? prop.TypeData.HasGenericTypeMapping
-                                ? BuildProjectedCollectionMapping($"model.{modelPropName}", "ToDto", prop.TypeData.IsNullable)
-                                : $"model.{modelPropName}{nc}.ToDto()"
+                                ? BuildProjectedCollectionMapping($"model.{modelPropName}", toDtoMethod, prop.TypeData.IsNullable)
+                                : $"model.{modelPropName}{nc}.{toDtoMethod}()"
                             : $"model.{modelPropName}";
                     }
                 }
@@ -498,7 +500,7 @@ internal static class SourceProducer
         }
 
         sb.AppendLine($"    protected override {target.Model.FullName} ToModel({className} dto) => dto.ToModel();");
-        sb.AppendLine($"    protected override {className} ToDto({target.Model.FullName} model) => model.ToDto();");
+        sb.AppendLine($"    protected override {className} ToDto({target.Model.FullName} model) => model.{target.ToDtoMethodName}();");
         sb.AppendLine($"}}");
 
         var hintName = target.Namespace is not null

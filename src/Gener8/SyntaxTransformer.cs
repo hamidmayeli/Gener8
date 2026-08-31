@@ -91,7 +91,8 @@ internal static class SyntaxTransformer
             properties,
             new(modelFullName, modelSymbol.Name, GetPrimaryConstructorParams(modelSymbol)),
             repositoryKind,
-            autoTargets);
+            autoTargets,
+            ComputeToDtoMethodName(classSymbol.Name, modelSymbol.Name));
 
         return new ClassTargetResult(target, null);
     }
@@ -169,7 +170,8 @@ internal static class SyntaxTransformer
                 props,
                 new ModelClass(modelFullName, symbol.Name, GetPrimaryConstructorParams(symbol)),
                 repositoryKind,
-                []));
+                [],
+                "ToDto"));
         }
     }
 
@@ -180,6 +182,16 @@ internal static class SyntaxTransformer
                 return (RepositoryKind)val;
 
         return RepositoryKind.None;
+    }
+
+    // When the DTO class name starts with the model name as a prefix, the suffix drives the
+    // mapping method name: "Product" + "View" → "ToView". Falls back to "ToDto" otherwise.
+    private static string ComputeToDtoMethodName(string dtoClassName, string modelName)
+    {
+        if (dtoClassName.Length > modelName.Length
+            && dtoClassName.StartsWith(modelName, System.StringComparison.Ordinal))
+            return "To" + dtoClassName.Substring(modelName.Length);
+        return "ToDto";
     }
 
     // Returns ordered property names (in constructor parameter order) when the model type has a

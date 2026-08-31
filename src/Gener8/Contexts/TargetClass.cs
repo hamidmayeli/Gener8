@@ -9,5 +9,6 @@ internal sealed record TargetClass(
     IReadOnlyCollection<PropertyData> Properties,
     ModelClass Model,
     RepositoryKind Repository,
-    IReadOnlyCollection<TargetClass> AutoDtoTargets
+    IReadOnlyCollection<TargetClass> AutoDtoTargets,
+    string ToDtoMethodName
     );
