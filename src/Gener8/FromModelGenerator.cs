@@ -30,9 +30,10 @@ public sealed partial class FromModelGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(pipeline.Combine(nullableEnabled), static (ctx, pair) =>
         {
             var (result, nullable) = pair;
-            if (result!.Error is not null)
+            if (result!.Errors is { Count: > 0 } errors)
             {
-                ctx.ReportDiagnostic(result.Error);
+                foreach (var e in errors)
+                    ctx.ReportDiagnostic(e);
                 return;
             }
 

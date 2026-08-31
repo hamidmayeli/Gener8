@@ -38,6 +38,7 @@ internal partial record DefaultSource(string Name, string Code, string Filename)
             public FlattenPrefix FlattenPrefix { get; set; }
             public RepositoryType Repository { get; set; }
             public string[] DtoNamespaces { get; set; } = [];
+            public string[] ForceNullable { get; set; } = [];
         }
         """,
         Filename: "FromModelAttribute.g.cs"

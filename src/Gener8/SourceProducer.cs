@@ -92,7 +92,9 @@ internal static class SourceProducer
             }
 
             var modifier = isRequired() ? "required " : "";
-            var typeStr = (nullableEnabled || prop.TypeData.IsNullableValueType)
+            // ForceNullable properties must always retain '?' — the user explicitly requested
+            // nullability. IsNullableValueType also preserves '?' for Nullable<T> struct wrappers.
+            var typeStr = (nullableEnabled || prop.TypeData.IsNullableValueType || prop.IsForceNullable)
                 ? prop.TypeData.Type
                 : StripNullable(prop.TypeData.Type);
             var line = $"    public {modifier}{typeStr} {prop.Name}{accessors}";
@@ -123,8 +125,19 @@ internal static class SourceProducer
             sb.AppendLine($"namespace {target.Namespace};");
 
         var extAccessibility = target.Accessibility == "public" ? "public" : "internal";
-        sb.AppendLine($"{extAccessibility} static class {target.ClassName}Extensions");
+        sb.AppendLine($"{extAccessibility} static partial class {target.ClassName}Extensions");
         sb.AppendLine($"{{");
+
+        // Emit private partial method stubs for force-nullable properties.
+        // The consumer implements these to supply a model value when the DTO property is null.
+        var hasForceNullableStubs = false;
+        foreach (var prop in target.Properties)
+        {
+            if (!prop.IsForceNullable || prop.ForceNullableModelType is null) continue;
+            hasForceNullableStubs = true;
+            sb.AppendLine($"    private static partial {prop.ForceNullableModelType} GetDefault{prop.Name}({target.ClassName} dto);");
+        }
+        if (hasForceNullableStubs) sb.AppendLine();
 
         // Pre-pass: group non-type-mapped flattened properties by parent for ToModel reconstruction.
         var flattenedByParent = new Dictionary<string, List<PropertyData>>();
@@ -156,17 +169,22 @@ internal static class SourceProducer
                 if (i > 0) args.Append(", ");
                 var paramName = ctorParams[i];
                 string dtoPropName = paramName;
-                PropertyTypeData? typeData = null;
+                PropertyData? propData = null;
                 foreach (var p in target.Properties)
                 {
                     if ((p.ModelPropertyName ?? p.Name) == paramName)
                     {
                         dtoPropName = p.Name;
-                        typeData = p.TypeData;
+                        propData = p;
                         break;
                     }
                 }
-                if (typeData?.HasTypeMapping == true)
+                var typeData = propData?.TypeData;
+                if (propData?.IsForceNullable == true)
+                {
+                    args.Append($"dto.{dtoPropName} is null ? GetDefault{dtoPropName}(dto) : {BuildForceNullableNonNullRhs(propData)}");
+                }
+                else if (typeData?.HasTypeMapping == true)
                 {
                     var nc = typeData.IsNullable ? "?" : "";
                     args.Append(typeData.HasGenericTypeMapping
@@ -202,12 +220,20 @@ internal static class SourceProducer
                 foreach (var prop in extraProps)
                 {
                     var modelPropName = prop.ModelPropertyName ?? prop.Name;
-                    var nc = prop.TypeData.IsNullable ? "?" : "";
-                    var dtoRead = prop.TypeData.HasTypeMapping
-                        ? prop.TypeData.HasGenericTypeMapping
-                            ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
-                            : $"dto.{prop.Name}{nc}.ToModel()"
-                        : $"dto.{prop.Name}";
+                    string dtoRead;
+                    if (prop.IsForceNullable)
+                    {
+                        dtoRead = $"dto.{prop.Name} is null ? GetDefault{prop.Name}(dto) : {BuildForceNullableNonNullRhs(prop)}";
+                    }
+                    else
+                    {
+                        var nc = prop.TypeData.IsNullable ? "?" : "";
+                        dtoRead = prop.TypeData.HasTypeMapping
+                            ? prop.TypeData.HasGenericTypeMapping
+                                ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
+                                : $"dto.{prop.Name}{nc}.ToModel()"
+                            : $"dto.{prop.Name}";
+                    }
                     sb.AppendLine($"            {modelPropName} = {dtoRead},");
                 }
                 sb.AppendLine($"        }};");
@@ -225,12 +251,20 @@ internal static class SourceProducer
                 if (!prop.HasSetter && !prop.IsInitOnly) continue;
 
                 var modelPropName = prop.ModelPropertyName ?? prop.Name;
-                var nc = prop.TypeData.IsNullable ? "?" : "";
-                var dtoRead = prop.TypeData.HasTypeMapping
-                    ? prop.TypeData.HasGenericTypeMapping
-                        ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
-                        : $"dto.{prop.Name}{nc}.ToModel()"
-                    : $"dto.{prop.Name}";
+                string dtoRead;
+                if (prop.IsForceNullable)
+                {
+                    dtoRead = $"dto.{prop.Name} is null ? GetDefault{prop.Name}(dto) : {BuildForceNullableNonNullRhs(prop)}";
+                }
+                else
+                {
+                    var nc = prop.TypeData.IsNullable ? "?" : "";
+                    dtoRead = prop.TypeData.HasTypeMapping
+                        ? prop.TypeData.HasGenericTypeMapping
+                            ? BuildProjectedCollectionMapping($"dto.{prop.Name}", "ToModel", prop.TypeData.IsNullable)
+                            : $"dto.{prop.Name}{nc}.ToModel()"
+                        : $"dto.{prop.Name}";
+                }
 
                 sb.AppendLine($"            {modelPropName} = {dtoRead},");
             }
@@ -294,27 +328,50 @@ internal static class SourceProducer
             else
             {
                 var modelPropName = prop.ModelPropertyName ?? prop.Name;
-                var nc = prop.TypeData.Type.EndsWith("?") ? "?" : "";
-                if (prop.TypeData.NeedsSpreadAssignment)
+                if (prop.IsForceNullable)
                 {
-                    // Abstract collection (IReadOnlyCollection<T> etc.) remapped to List<T>.
-                    // Use collection expression spread; handle nullable model property with null guard.
-                    var collectionSource = $"model.{modelPropName}";
-                    var projectedCollection = prop.TypeData.HasGenericTypeMapping
-                        ? $"{collectionSource}.Select(m => m.ToDto())"
-                        : collectionSource;
-
-                    rhs = prop.TypeData.Type.EndsWith("?")
-                        ? $"{collectionSource} is null ? null : [.. {projectedCollection}]"
-                        : $"[.. {projectedCollection}]";
+                    // The model property is non-nullable (ForceNullable only makes the DTO nullable).
+                    // No null-conditional on the model side.
+                    if (prop.TypeData.NeedsSpreadAssignment)
+                    {
+                        var src = $"model.{modelPropName}";
+                        rhs = prop.TypeData.HasGenericTypeMapping
+                            ? $"[.. {src}.Select(m => m.ToDto())]"
+                            : $"[.. {src}]";
+                    }
+                    else
+                    {
+                        rhs = prop.TypeData.HasTypeMapping
+                            ? prop.TypeData.HasGenericTypeMapping
+                                ? BuildProjectedCollectionMapping($"model.{modelPropName}", "ToDto", false)
+                                : $"model.{modelPropName}.ToDto()"
+                            : $"model.{modelPropName}";
+                    }
                 }
                 else
                 {
-                    rhs = prop.TypeData.HasTypeMapping
-                        ? prop.TypeData.HasGenericTypeMapping
-                            ? BuildProjectedCollectionMapping($"model.{modelPropName}", "ToDto", prop.TypeData.IsNullable)
-                            : $"model.{modelPropName}{nc}.ToDto()"
-                        : $"model.{modelPropName}";
+                    var nc = prop.TypeData.Type.EndsWith("?") ? "?" : "";
+                    if (prop.TypeData.NeedsSpreadAssignment)
+                    {
+                        // Abstract collection (IReadOnlyCollection<T> etc.) remapped to List<T>.
+                        // Use collection expression spread; handle nullable model property with null guard.
+                        var collectionSource = $"model.{modelPropName}";
+                        var projectedCollection = prop.TypeData.HasGenericTypeMapping
+                            ? $"{collectionSource}.Select(m => m.ToDto())"
+                            : collectionSource;
+
+                        rhs = prop.TypeData.Type.EndsWith("?")
+                            ? $"{collectionSource} is null ? null : [.. {projectedCollection}]"
+                            : $"[.. {projectedCollection}]";
+                    }
+                    else
+                    {
+                        rhs = prop.TypeData.HasTypeMapping
+                            ? prop.TypeData.HasGenericTypeMapping
+                                ? BuildProjectedCollectionMapping($"model.{modelPropName}", "ToDto", prop.TypeData.IsNullable)
+                                : $"model.{modelPropName}{nc}.ToDto()"
+                            : $"model.{modelPropName}";
+                    }
                 }
             }
             sb.AppendLine($"            {prop.Name} = {rhs},");
@@ -355,6 +412,22 @@ internal static class SourceProducer
         return isNullable
             ? $"{source} is null ? null : [.. {projectedCollection}]"
             : $"[.. {projectedCollection}]";
+    }
+
+    // Builds the non-null branch RHS for a force-nullable property in ToModel.
+    // The caller wraps this in "dto.{Prop} is null ? Get{Prop}(dto) : {result}".
+    private static string BuildForceNullableNonNullRhs(PropertyData prop)
+    {
+        var name = prop.Name;
+        if (prop.TypeData.NeedsSpreadAssignment)
+            return prop.TypeData.HasGenericTypeMapping
+                ? $"[.. dto.{name}.Select(m => m.ToModel())]"
+                : $"[.. dto.{name}]";
+        if (prop.TypeData.HasTypeMapping)
+            return $"dto.{name}.ToModel()";
+        if (prop.TypeData.IsNullableValueType)
+            return $"dto.{name}.Value";
+        return $"dto.{name}";
     }
 
     // Emits all auto-generated DTOs, skipping any whose model is already covered by a

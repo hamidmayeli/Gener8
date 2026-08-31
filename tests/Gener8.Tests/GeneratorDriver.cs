@@ -14,10 +14,45 @@ internal static class GeneratorDriver
     internal static IReadOnlyDictionary<string, string> Run(params string[] sources)
         => RunCore(NullableContextOptions.Disable, sources);
 
+    /// <summary>
+    /// Compiles <paramref name="sources"/> with nullable enabled, runs <see cref="FromModelGenerator"/>, and returns
+    /// every source file the generator emitted (keyed by hint name).
+    /// Throws if the input compilation itself has errors (generator bugs would be masked otherwise).
+    /// </summary>
     internal static IReadOnlyDictionary<string, string> RunWithNullable(params string[] sources)
         => RunCore(NullableContextOptions.Enable, sources);
 
-    private static IReadOnlyDictionary<string, string> RunCore(NullableContextOptions nullable, string[] sources)
+    /// <summary>
+    /// Returns only the diagnostics reported by the generator itself (via ctx.ReportDiagnostic).
+    /// Does not throw on compilation errors in the input, so it can be used to test GENxxx.
+    /// </summary>
+    internal static IReadOnlyList<Diagnostic> RunForDiagnostics(params string[] sources)
+    {
+        var compilation = CreateCompilation(sources, NullableContextOptions.Disable);
+        var driver = CSharpGeneratorDriver
+            .Create(new FromModelGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        return driver.GetRunResult().Diagnostics;
+    }
+
+    /// <summary>
+    /// Use when testing generators that emit code referencing external SDK types (e.g. AWS, MongoDB).
+    /// Skips the compilation-error check so tests can assert on generated text without providing stubs.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> RunUnchecked(params string[] sources)
+    {
+        var compilation = CreateCompilation(sources, NullableContextOptions.Disable);
+        var driver = CSharpGeneratorDriver
+            .Create(new FromModelGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        return driver
+            .GetRunResult()
+            .Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
+    }
+
+    private static Dictionary<string, string> RunCore(NullableContextOptions nullable, string[] sources)
     {
         var compilation = CreateCompilation(sources, nullable);
 
@@ -38,32 +73,6 @@ internal static class GeneratorDriver
             throw new InvalidOperationException(
                 "Compilation has errors after generation:\n" + string.Join("\n", errors));
 
-        return driver
-            .GetRunResult()
-            .Results
-            .SelectMany(r => r.GeneratedSources)
-            .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
-    }
-
-    // Returns only the diagnostics reported by the generator itself (via ctx.ReportDiagnostic).
-    // Does not throw on compilation errors in the input, so it can be used to test GEN001/GEN999.
-    internal static IReadOnlyList<Diagnostic> RunForDiagnostics(params string[] sources)
-    {
-        var compilation = CreateCompilation(sources, NullableContextOptions.Disable);
-        var driver = CSharpGeneratorDriver
-            .Create(new FromModelGenerator())
-            .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
-        return driver.GetRunResult().Diagnostics;
-    }
-
-    // Use when testing generators that emit code referencing external SDK types (e.g. AWS, MongoDB).
-    // Skips the compilation-error check so tests can assert on generated text without providing stubs.
-    internal static IReadOnlyDictionary<string, string> RunUnchecked(params string[] sources)
-    {
-        var compilation = CreateCompilation(sources, NullableContextOptions.Disable);
-        var driver = CSharpGeneratorDriver
-            .Create(new FromModelGenerator())
-            .RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
         return driver
             .GetRunResult()
             .Results

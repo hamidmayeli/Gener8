@@ -16,6 +16,19 @@ public class MappingExtensionsTests
     }
 
     [Fact]
+    public void ExtensionsClassIsAlwaysPartial()
+    {
+        var generated = GeneratorDriver.Run("""
+            using Gener8;
+            public class Product { public string Name { get; set; } = ""; }
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains("static partial class ProductDtoExtensions", generated["ProductDtoExtensions.g.cs"]);
+    }
+
+    [Fact]
     public void EmitsToModelAndToDtoMethods()
     {
         var results = GeneratorDriver.RunWithNullable("""
@@ -269,7 +282,7 @@ public class MappingExtensionsTests
             """);
 
         var source = results["ProductDtoExtensions.g.cs"];
-        Assert.Contains("public static class ProductDtoExtensions", source);
+        Assert.Contains("public static partial class ProductDtoExtensions", source);
     }
 
     [Fact]
@@ -283,7 +296,7 @@ public class MappingExtensionsTests
             """);
 
         var source = results["ProductDtoExtensions.g.cs"];
-        Assert.Contains("internal static class ProductDtoExtensions", source);
+        Assert.Contains("internal static partial class ProductDtoExtensions", source);
     }
 
     [Fact]

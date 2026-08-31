@@ -8,7 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Gener8;
 
-internal sealed record ClassTargetResult(TargetClass? Target, Diagnostic? Error);
+internal sealed record ClassTargetResult(TargetClass? Target, IReadOnlyList<Diagnostic>? Errors = null);
 
 internal static class SyntaxTransformer
 {
@@ -32,7 +32,7 @@ internal static class SyntaxTransformer
                 Diagnostics.UnresolvedModelType,
                 context.Node.GetLocation(),
                 classSymbol.Name);
-            return new ClassTargetResult(null, diagnostic);
+            return new ClassTargetResult(null, [diagnostic]);
         }
 
         var ns = classSymbol.ContainingNamespace is { IsGlobalNamespace: false } nsSymbol
@@ -56,6 +56,18 @@ internal static class SyntaxTransformer
 
         var builder = new PropertyDataBuilder(classSymbol, attr, modelSymbol, repositoryKind, qualifyingNamespaces);
         var properties = builder.GetProperties();
+
+        if (builder.AlreadyNullablePropertyNames.Count > 0)
+        {
+            var errors = new List<Diagnostic>(builder.AlreadyNullablePropertyNames.Count);
+            foreach (var propName in builder.AlreadyNullablePropertyNames)
+                errors.Add(Diagnostic.Create(
+                    Diagnostics.AlreadyNullableProperty,
+                    context.Node.GetLocation(),
+                    propName,
+                    modelSymbol.Name));
+            return new ClassTargetResult(null, errors);
+        }
 
         var autoTargets = BuildAutoTargets(builder.AutoTargetSymbols, ns, accessibility, qualifyingNamespaces, repositoryKind);
 

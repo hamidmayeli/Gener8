@@ -15,8 +15,10 @@ internal sealed class PropertyDataBuilder(
     IReadOnlyCollection<string>? qualifyingNamespaces = null)
 {
     private readonly List<INamedTypeSymbol> _autoTargetSymbols = [];
+    private readonly List<string> _alreadyNullablePropertyNames = [];
 
     public IReadOnlyCollection<INamedTypeSymbol> AutoTargetSymbols => _autoTargetSymbols;
+    public IReadOnlyList<string> AlreadyNullablePropertyNames => _alreadyNullablePropertyNames;
 
     public IReadOnlyCollection<PropertyData> GetProperties()
     {
@@ -27,6 +29,7 @@ internal sealed class PropertyDataBuilder(
         var typeMappings = GetTypeMappings();
         PopulateInferredMappings(typeMappings, includeInherited);
         var renameMap = GetRenameMap();
+        var forceNullableNames = GetForceNullableProperties();
         var existingDtoProps = GetExistingDtoPropertyNames();
 
         var ctorBackedNames = GetConstructorBackedPropertyNames(modelSymbol);
@@ -70,6 +73,13 @@ internal sealed class PropertyDataBuilder(
             }
             else
             {
+                var isForceNullable = forceNullableNames.Contains(property.Name);
+                if (isForceNullable && property.NullableAnnotation == NullableAnnotation.Annotated)
+                {
+                    _alreadyNullablePropertyNames.Add(property.Name);
+                    isForceNullable = false;
+                }
+
                 var dtoPropName = renameMap.TryGetValue(property.Name, out var renamed) ? renamed : property.Name;
                 var isUserDeclared = existingDtoProps.Contains(dtoPropName);
                 properties.Add(
@@ -79,7 +89,8 @@ internal sealed class PropertyDataBuilder(
                         renameMap,
                         repositoryKind,
                         isUserDeclared: isUserDeclared,
-                        isConstructorBacked: ctorBackedNames.Contains(property.Name)
+                        isConstructorBacked: ctorBackedNames.Contains(property.Name),
+                        isForceNullable: isForceNullable
                         )
                     );
             }
@@ -210,7 +221,8 @@ internal sealed class PropertyDataBuilder(
         string? nameOverride = null,
         (string Name, string TypeFullName, bool IsNullable)? flattenParent = null,
         bool isUserDeclared = false,
-        bool isConstructorBacked = false)
+        bool isConstructorBacked = false,
+        bool isForceNullable = false)
     {
         var name = nameOverride
             ?? (renameMap?.TryGetValue(property.Name, out var renamed) == true ? renamed : property.Name);
@@ -221,19 +233,25 @@ internal sealed class PropertyDataBuilder(
         var isInitOnly = property.SetMethod is { IsInitOnly: true } || (property.SetMethod is null && isConstructorBacked);
         var hasSetter = property.SetMethod is not null && !property.SetMethod.IsInitOnly && !isInitOnly;
 
+        // ForceNullable: capture the globally-qualified model type for the partial method stub.
+        string? forceNullableModelType = null;
+        if (isForceNullable)
+            forceNullableModelType = property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+
         return new PropertyData(
-            GetTypeData(property, typeMappings, repositoryKind, flattenParent?.IsNullable ?? false),
+            GetTypeData(property, typeMappings, repositoryKind, flattenParent?.IsNullable ?? false, isForceNullable),
             name,
             property.GetMethod is not null,
             hasSetter,
             isInitOnly,
-            property.IsRequired && !(flattenParent?.IsNullable ?? false),
+            // ForceNullable suppresses required: a nullable DTO property cannot be required in a meaningful way.
+            property.IsRequired && !(flattenParent?.IsNullable ?? false) && !isForceNullable,
             GetInitializer(property),
             modelPropertyName,
             isUserDeclared,
-            GetFlattenedData(
-                property,
-                flattenParent)
+            GetFlattenedData(property, flattenParent),
+            isForceNullable,
+            forceNullableModelType
             );
     }
 
@@ -241,11 +259,12 @@ internal sealed class PropertyDataBuilder(
         IPropertySymbol property,
         Dictionary<string, string> typeMappings,
         RepositoryKind? repositoryKind,
-        bool isParentNullable
+        bool isParentNullable,
+        bool forceNullable = false
         )
     {
         var originalType = property.Type.ToDisplayString();
-        var isNullable = isParentNullable || property.NullableAnnotation == NullableAnnotation.Annotated;
+        var isNullable = isParentNullable || property.NullableAnnotation == NullableAnnotation.Annotated || forceNullable;
 
         // Roslyn's default ToDisplayString() includes '?' for nullable reference types when
         // nullable context is enabled. TypeMapping keys are stored without '?' (from INamedTypeSymbol).
@@ -283,7 +302,7 @@ internal sealed class PropertyDataBuilder(
             hasGenericTypeMapping = true;
         }
 
-        if (isParentNullable && !typeDisplay.EndsWith("?"))
+        if ((isParentNullable || forceNullable) && !typeDisplay.EndsWith("?"))
             typeDisplay += "?";
 
         // For DynamoDB, remap abstract collection interfaces to List<T> so the SDK
@@ -554,6 +573,20 @@ internal sealed class PropertyDataBuilder(
         foreach (var namedArg in attribute.NamedArguments)
         {
             if (namedArg.Key != "Flatten") continue;
+            foreach (var item in namedArg.Value.Values)
+                if (item.Value is string name)
+                    result.Add(name);
+        }
+        return result;
+    }
+
+    private HashSet<string> GetForceNullableProperties()
+    {
+        var result = new HashSet<string>();
+        if (attribute is null) return result;
+        foreach (var namedArg in attribute.NamedArguments)
+        {
+            if (namedArg.Key != "ForceNullable") continue;
             foreach (var item in namedArg.Value.Values)
                 if (item.Value is string name)
                     result.Add(name);

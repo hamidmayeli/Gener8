@@ -416,6 +416,82 @@ The `IRepository<TModel>` interface (always injected) defines the standard CRUD 
 
 ---
 
+## 8. Force nullable
+
+Make a subset of non-nullable model properties appear as nullable in the generated DTO. The generator validates that listed properties are not already nullable on the model.
+
+```csharp
+public class Catalog
+{
+    public string Title { get; set; } = "";
+    public CatalogVersion Version { get; set; } = new();
+}
+
+[FromModel(typeof(Catalog), ForceNullable = [nameof(Catalog.Version)])]
+public partial class CatalogDto { }
+
+// Generated CatalogDto.g.cs:
+// public string Title { get; set; }
+// public CatalogVersion? Version { get; set; }    ← nullable; required suppressed
+```
+
+- Pass property names as `nameof(...)` expressions (same style as `Ignore`).
+- `required` is suppressed for force-nullable properties — a nullable property cannot be meaningfully required.
+- **GEN002** is raised if a listed property is already nullable on the model.
+
+### Extensions class changes
+
+The extensions class is always declared `partial` so consumers can supplement it with their own members.
+
+For each force-nullable property the generator emits a `private static partial` method stub named `Get{PropertyName}`. The consumer implements it in a second partial declaration to supply the model value when the DTO property is `null`:
+
+```csharp
+// Generated CatalogDtoExtensions.g.cs (excerpt):
+public static partial class CatalogDtoExtensions
+{
+    private static partial CatalogVersion GetDefaultVersion(CatalogDto dto);
+
+    public static Catalog? ToModel(this CatalogDto? dto)
+        => dto is null ? null : new Catalog
+        {
+            Title = dto.Title,
+            Version = dto.Version is null ? GetDefaultVersion(dto) : dto.Version,
+        };
+}
+
+// Consumer provides the implementation:
+public static partial class CatalogDtoExtensions
+{
+    private static partial CatalogVersion GetDefaultVersion(CatalogDto dto)
+        => CatalogVersion.Default;
+}
+```
+
+### ToModel null-check pattern
+
+| Scenario | Generated expression |
+|---|---|
+| Plain type (no mapping) | `dto.Prop is null ? GetProp(dto) : dto.Prop` |
+| Value type (`int`, struct) | `dto.Prop is null ? GetProp(dto) : dto.Prop.Value` |
+| Type-mapped | `dto.Prop is null ? GetProp(dto) : dto.Prop.ToModel()` |
+| Collection spread | `dto.Prop is null ? [.. GetProp(dto)] : [.. dto.Prop]` |
+| Collection spread + type-mapped elements | `dto.Prop is null ? [.. GetProp(dto)] : [.. dto.Prop.Select(m => m.ToModel())]` |
+
+The partial method always returns the **model's property type** (non-nullable). Callers receive a `CatalogVersion`, not a `CatalogVersionDto`.
+
+### ToDto — no change required
+
+`ToDto` reads from the model, where the property is still non-nullable. No null-conditional (`?.`) is emitted:
+
+```csharp
+// ToDto assigns directly — model.Version is always non-null
+Version = model.Version,
+// or, with TypeMapping:
+Version = model.Version.ToDto(),
+```
+
+---
+
 ## Planned features
 
 The following features are on the roadmap but not yet implemented:
@@ -423,5 +499,4 @@ The following features are on the roadmap but not yet implemented:
 | Feature | Description |
 |---|---|
 | **Compose from multiple models** | Merge properties from more than one source model into a single DTO |
-| **Force nullability** | Emit all properties as nullable (`string?`) regardless of source nullability |
 | **Override accessors** | Emit all properties with a specific accessor pattern (`GetOnly`, `GetSet`, `GetInit`) |

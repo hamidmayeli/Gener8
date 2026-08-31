@@ -12,6 +12,14 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor AlreadyNullableProperty = new(
+        id: "GEN002",
+        title: "Property is already nullable",
+        messageFormat: "ForceNullable: property '{0}' on model '{1}' is already nullable. Remove it from ForceNullable or make the model property non-nullable.",
+        category: "Gener8",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor UnexpectedError = new(
         id: "GEN999",
         title: "Unexpected generator error",
