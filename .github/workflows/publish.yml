@@ -14,7 +14,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: contains(inputs.version, '-beta.') || contains(inputs.version, '-alpha.') || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v7
 
