@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+
+    <!-- NuGet metadata (published standalone as Gener8.Abstractions; also bundled inside the Gener8 package) -->
+    <PackageId>Gener8.Abstractions</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Hamid Mayeli</Authors>
+    <Description>Core attributes, enums, and repository contracts for Gener8. Zero third-party dependencies.</Description>
+    <PackageTags>source-generator;roslyn;dto;code-generation;c#</PackageTags>
+    <PackageProjectUrl>https://github.com/hamidmayeli/from-model</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/hamidmayeli/from-model</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>gener8.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="README.md" />
+    <None Include="../../gener8.png" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>

@@ -125,22 +125,6 @@ public class TypeMappingTests
     }
 
     [Fact]
-    public void EmitsTypeMappingAttributeSourceFile()
-    {
-        var results = GeneratorDriver.Run("public class Empty { }");
-
-        Assert.Contains("TypeMappingAttribute.g.cs", results.Keys);
-    }
-
-    [Fact]
-    public void EmitsIgnoreTypeMappingAttributeSourceFile()
-    {
-        var results = GeneratorDriver.Run("public class Empty { }");
-
-        Assert.Contains("IgnoreTypeMappingAttribute.g.cs", results.Keys);
-    }
-
-    [Fact]
     public void IgnoreTypeMappingPreventsInferredMapping()
     {
         var results = GeneratorDriver.Run("""

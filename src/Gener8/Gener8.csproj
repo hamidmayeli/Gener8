@@ -9,21 +9,20 @@
     <PackageId>Gener8</PackageId>
     <Version>0.0.1</Version>
     <Authors>Hamid Mayeli</Authors>
-    <Description>C# source generator that copies public properties from a model class to a decorated partial DTO class.</Description>
+    <Description>C# source generator that copies public properties from a model class to a decorated partial DTO class. Includes Gener8.Abstractions (attributes, enums, repository contracts).</Description>
     <PackageTags>source-generator;roslyn;dto;code-generation;c#</PackageTags>
     <PackageProjectUrl>https://github.com/hamidmayeli/from-model</PackageProjectUrl>
     <RepositoryUrl>https://github.com/hamidmayeli/from-model</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>gener8.png</PackageIcon>
 
-    <!-- Source generators must live under analyzers/dotnet/cs/, not lib/ -->
+    <!-- The generator DLL must not land in lib/; it goes under analyzers/dotnet/cs/ below. -->
+    <!-- Abstractions DLL is manually placed in lib/netstandard2.0/ via the None item below. -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <!-- NU5128: no lib/ assemblies is intentional for source generators -->
     <!-- RS2008: release tracking is opt-in overhead not needed for a single-project generator -->
-    <NoWarn>$(NoWarn);NU5128;RS2008</NoWarn>
-    <!-- Consumers don't need a runtime reference; mark as dev-only -->
-    <DevelopmentDependency>true</DevelopmentDependency>
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,9 +35,28 @@
     </PackageReference>
   </ItemGroup>
 
+  <!--
+    Build-order dependency only: ensures Gener8.Abstractions is compiled before we pack.
+    ReferenceOutputAssembly="false" keeps the abstractions DLL out of the generator's
+    own compilation (the generator works via Roslyn string-based symbol lookup, not
+    direct type references).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Gener8.Abstractions\Gener8.Abstractions.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="README.md" />
+    <None Include="../../gener8.png" Pack="true" PackagePath="" />
+    <!-- Generator DLL → analyzers/dotnet/cs/ (loaded by the compiler, not deployed at runtime) -->
     <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <!-- Abstractions DLL → lib/netstandard2.0/ (compile + runtime reference for consumers) -->
+    <None Include="..\Gener8.Abstractions\bin\$(Configuration)\netstandard2.0\Gener8.Abstractions.dll"
+          Pack="true"
+          PackagePath="lib/netstandard2.0"
+          Visible="false" />
   </ItemGroup>
 
 </Project>

@@ -11,7 +11,17 @@ A C# Roslyn source generator that copies public properties from a model class in
 dotnet add package Gener8
 ```
 
-The package is a development dependency — it is automatically marked `PrivateAssets=all` and adds no runtime reference to your project.
+This single package includes both the Roslyn source generator and `Gener8.Abstractions` (attributes, enums, repository contracts). No additional install is needed for basic DTO generation.
+
+**DynamoDB repositories:**
+```
+dotnet add package Gener8.Extensions.DynamoDB
+```
+
+**MongoDB repositories:**
+```
+dotnet add package Gener8.Extensions.MongoDB
+```
 
 ## Quick start
 
@@ -152,7 +162,7 @@ Use `RepositoryType.Custom` to get a `partial` scaffold backed by `Gener8.Reposi
 
 `DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. All abstract bases are emitted only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
 
-The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project for DynamoDb/MongoDb respectively.
+The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project for DynamoDb/MongoDb respectively. Also add `Gener8.Extensions.DynamoDB` or `Gener8.Extensions.MongoDB` which provides the abstract base classes (`DynamoDbRepository<TModel,TDto>`, `MongoDbRepository<TModel,TDto>`) and converters.
 
 ## Documentation
 
@@ -167,8 +177,16 @@ The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the co
 ## Building from source
 
 ```
-dotnet build src/Gener8/Gener8.csproj
+dotnet build
 dotnet test
+```
+
+To build individual packages:
+```
+dotnet build src/Gener8.Abstractions/Gener8.Abstractions.csproj
+dotnet build src/Gener8/Gener8.csproj
+dotnet build src/Gener8.Extensions.DynamoDB/Gener8.Extensions.DynamoDB.csproj
+dotnet build src/Gener8.Extensions.MongoDB/Gener8.Extensions.MongoDB.csproj
 ```
 
 ## License

@@ -47,14 +47,14 @@ namespace Gener8.Sample
     public partial class CustomRepositoryContentDto { }
 }
 
-namespace Gener8
+namespace Gener8.Sample
 {
-    partial class RepositoryBase<TModel, TDto>
+    public partial class CustomRepositoryContentRepository
     {
-        public Task<TModel?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task SaveAsync(TModel entity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task DeleteAsync(TModel entity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task DeleteByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<IEnumerable<TModel>> GetAllAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public override Task<CustomRepositoryContent?> GetByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public override Task SaveAsync(CustomRepositoryContent entity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public override Task DeleteAsync(CustomRepositoryContent entity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public override Task DeleteByIdAsync(object id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public override Task<IEnumerable<CustomRepositoryContent>> GetAllAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

@@ -144,14 +144,6 @@ public class FlattenTests
     }
 
     [Fact]
-    public void EmitsFlattenPrefixEnumSourceFile()
-    {
-        var results = GeneratorDriver.Run("public class Empty { }");
-
-        Assert.Contains("FlattenPrefix.g.cs", results.Keys);
-    }
-
-    [Fact]
     public void FlattenNullableType_OverriedsRequiredModifier()
     {
         var results = GeneratorDriver.RunWithNullable("""

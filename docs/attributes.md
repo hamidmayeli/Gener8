@@ -1,6 +1,6 @@
 # Attribute Reference
 
-All attributes are injected by the generator into every consuming project at build time via `RegisterPostInitializationOutput`. You do not need to reference a separate runtime package — they are always available wherever the NuGet package is installed.
+All attributes, enums, and repository contracts live in `Gener8.Abstractions`, which is bundled inside the core `Gener8` NuGet package under `lib/netstandard2.0/`. They are strongly-typed compiled C# — IntelliSense, Go to Definition, and `nameof()` all work as expected. No separate install is needed.
 
 ---
 
@@ -181,7 +181,7 @@ See [features.md — Repository scaffold](features.md#7-repository-scaffold) for
 
 **Full name:** `Gener8.IRepository<TModel>`  
 **Constraint:** `TModel : class`  
-**Always injected:** yes (via `RegisterPostInitializationOutput`)
+**Defined in:** `Gener8.Abstractions`
 
 Defines the standard CRUD contract. All generated repository classes implement this interface indirectly through their abstract base.
 

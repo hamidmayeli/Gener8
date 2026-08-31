@@ -1,91 +1,76 @@
-﻿using Microsoft.Data.SqlClient;
+using CustomDb.Integration.Tests.Setup;
+using Microsoft.Data.SqlClient;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
-namespace Gener8;
+namespace CustomDb.Integration.Tests.Setup.Models;
 
-public class RepositoryContext(string connectionString) : IRepositoryContext
-{
-    public string ConnectionString => connectionString;
-}
-
-partial class RepositoryBase<TModel, TDto>
+public partial class ProductRepository
 {
     private RepositoryContext TheContext => Context as RepositoryContext
         ?? throw new InvalidOperationException("Context is not a RepositoryContext");
 
-    public async Task<TModel?> GetByIdAsync(object id, CancellationToken cancellationToken = default)
+    public override async Task<Product?> GetByIdAsync(object id, CancellationToken cancellationToken = default)
     {
         using var connection = new SqlConnection(TheContext.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
-
         command.CommandText = $"{GetSelectQuery()} {CreateWhereClauseForId()}";
-        AddIdAsParameter(id, command);
+        command.Parameters.AddWithValue("@Id", id);
 
         var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
-            return ToModel(ToDto(reader));
+            return ToModel(ReadDto(reader));
 
         return null;
     }
 
-    public async Task SaveAsync(TModel entity, CancellationToken cancellationToken = default)
+    public override async Task SaveAsync(Product entity, CancellationToken cancellationToken = default)
     {
         using var connection = new SqlConnection(TheContext.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
-
         command.CommandText = GetUpsertQuery();
         AddAllParameters(entity, command);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public Task DeleteAsync(TModel entity, CancellationToken cancellationToken = default)
+    public override Task DeleteAsync(Product entity, CancellationToken cancellationToken = default)
         => DeleteByIdAsync(GetIdFromEntity(entity), cancellationToken);
 
-    public async Task DeleteByIdAsync(object id, CancellationToken cancellationToken = default)
+    public override async Task DeleteByIdAsync(object id, CancellationToken cancellationToken = default)
     {
         using var connection = new SqlConnection(TheContext.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
-
         command.CommandText = $"{GetDeleteQuery()} {CreateWhereClauseForId()}";
-        AddIdAsParameter(id, command);
+        command.Parameters.AddWithValue("@Id", id);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<TModel>> GetAllAsync(CancellationToken cancellationToken = default)
+    public override async Task<IEnumerable<Product>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var results = new List<TModel>();
+        var results = new List<Product>();
 
         using var connection = new SqlConnection(TheContext.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         var command = connection.CreateCommand();
-
         command.CommandText = GetSelectQuery();
 
         var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
-            results.Add(ToModel(ToDto(reader)));
+            results.Add(ToModel(ReadDto(reader)));
 
         return results;
     }
-
-    abstract protected string GetSelectQuery();
-    abstract protected string GetUpsertQuery();
-    abstract protected string GetDeleteQuery();
-    abstract protected string CreateWhereClauseForId();
-    abstract protected TDto ToDto(SqlDataReader reader);
-    abstract protected object GetIdFromEntity(TModel entity);
-    protected abstract void AddAllParameters(TModel entity, SqlCommand command);
-
-    private static void AddIdAsParameter(object id, SqlCommand command)
-        => command.Parameters.AddWithValue("@Id", id);
 }
