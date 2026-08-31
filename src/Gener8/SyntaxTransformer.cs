@@ -53,8 +53,9 @@ internal static class SyntaxTransformer
         var repositoryKind = GetRepositoryKind(attr);
         var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var qualifyingNamespaces = GetQualifyingNamespaces(attr, modelSymbol);
+        var ignoredTypeMappings = GetIgnoredTypeMappings(classSymbol);
 
-        var builder = new PropertyDataBuilder(classSymbol, attr, modelSymbol, repositoryKind, qualifyingNamespaces);
+        var builder = new PropertyDataBuilder(classSymbol, attr, modelSymbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings);
         var properties = builder.GetProperties();
 
         if (builder.AlreadyNullablePropertyNames.Count > 0)
@@ -81,7 +82,7 @@ internal static class SyntaxTransformer
             return new ClassTargetResult(null, errors);
         }
 
-        var autoTargets = BuildAutoTargets(builder.AutoTargetSymbols, ns, accessibility, qualifyingNamespaces, repositoryKind);
+        var autoTargets = BuildAutoTargets(builder.AutoTargetSymbols, ns, accessibility, qualifyingNamespaces, repositoryKind, ignoredTypeMappings);
 
         var target = new TargetClass(
             classSymbol.Name,
@@ -126,11 +127,12 @@ internal static class SyntaxTransformer
         string? targetNs,
         string accessibility,
         IReadOnlyCollection<string> qualifyingNamespaces,
-        RepositoryKind repositoryKind)
+        RepositoryKind repositoryKind,
+        IReadOnlyCollection<string> ignoredTypeMappings)
     {
         var result = new List<TargetClass>();
         var visited = new HashSet<string>();
-        CollectAutoTargets(symbols, targetNs, accessibility, qualifyingNamespaces, repositoryKind, visited, result);
+        CollectAutoTargets(symbols, targetNs, accessibility, qualifyingNamespaces, repositoryKind, ignoredTypeMappings, visited, result);
         return result;
     }
 
@@ -140,6 +142,7 @@ internal static class SyntaxTransformer
         string accessibility,
         IReadOnlyCollection<string> qualifyingNamespaces,
         RepositoryKind repositoryKind,
+        IReadOnlyCollection<string> ignoredTypeMappings,
         HashSet<string> visited,
         List<TargetClass> result)
     {
@@ -152,12 +155,12 @@ internal static class SyntaxTransformer
             var modelFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
             // No classSymbol/attribute for synthesised DTOs — all options default to empty/false.
-            // Propagate repositoryKind so that e.g. DynamoDB enum converter attributes are emitted.
-            var builder = new PropertyDataBuilder(null, null, symbol, repositoryKind, qualifyingNamespaces);
+            // Propagate repositoryKind and ignoredTypeMappings so ignore rules apply transitively.
+            var builder = new PropertyDataBuilder(null, null, symbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings);
             var props = builder.GetProperties();
 
             // Depth-first: add nested auto-targets before this one so dependencies come first.
-            CollectAutoTargets(builder.AutoTargetSymbols, targetNs, accessibility, qualifyingNamespaces, repositoryKind, visited, result);
+            CollectAutoTargets(builder.AutoTargetSymbols, targetNs, accessibility, qualifyingNamespaces, repositoryKind, ignoredTypeMappings, visited, result);
 
             result.Add(new TargetClass(
                 dtoName,
@@ -226,6 +229,19 @@ internal static class SyntaxTransformer
         }
 
         return default;
+    }
+
+    private static IReadOnlyCollection<string> GetIgnoredTypeMappings(INamedTypeSymbol classSymbol)
+    {
+        var result = new HashSet<string>();
+        foreach (var a in classSymbol.GetAttributes())
+        {
+            if (a.AttributeClass?.ToDisplayString() != DefaultSource.IgnoreTypeMappingAttribute.Name) continue;
+            if (a.ConstructorArguments.Length < 1) continue;
+            if (a.ConstructorArguments[0].Value is INamedTypeSymbol ignoredType)
+                result.Add(ignoredType.ToDisplayString());
+        }
+        return result;
     }
 
     private static bool TryGetFromModelAttributeData(INamedTypeSymbol classSymbol, [NotNullWhen(true)] out AttributeData? attr)

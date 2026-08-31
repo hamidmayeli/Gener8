@@ -131,4 +131,113 @@ public class TypeMappingTests
 
         Assert.Contains("TypeMappingAttribute.g.cs", results.Keys);
     }
+
+    [Fact]
+    public void EmitsIgnoreTypeMappingAttributeSourceFile()
+    {
+        var results = GeneratorDriver.Run("public class Empty { }");
+
+        Assert.Contains("IgnoreTypeMappingAttribute.g.cs", results.Keys);
+    }
+
+    [Fact]
+    public void IgnoreTypeMappingPreventsInferredMapping()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class File { public string Path { get; set; } = ""; }
+            public class Document { public File Attachment { get; set; } = new(); public string Title { get; set; } = ""; }
+            [FromModel(typeof(Document))]
+            [IgnoreTypeMapping(typeof(File))]
+            public partial class DocumentDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "DocumentDto.g.cs").Value;
+        Assert.Contains("public File Attachment", source);
+        Assert.DoesNotContain("FileDto", source);
+        Assert.DoesNotContain("FileDto.g.cs", results.Keys);
+    }
+
+    [Fact]
+    public void IgnoreTypeMappingPreventsInferredCollectionMapping()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class File { public string Path { get; set; } = ""; }
+            public class Document { public IEnumerable<File> Files { get; set; } = []; public string Title { get; set; } = ""; }
+            [FromModel(typeof(Document))]
+            [IgnoreTypeMapping(typeof(File))]
+            public partial class DocumentDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "DocumentDto.g.cs").Value;
+        Assert.Contains("IEnumerable<File>", source);
+        Assert.DoesNotContain("FileDto", source);
+    }
+
+    [Fact]
+    public void IgnoreTypeMappingPreventsExplicitTypeMapping()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class File { public string Path { get; set; } = ""; }
+            public class FileDto { public string Path { get; set; } = ""; }
+            public class Document { public File Attachment { get; set; } = new(); }
+            [FromModel(typeof(Document))]
+            [TypeMapping(typeof(File), typeof(FileDto))]
+            [IgnoreTypeMapping(typeof(File))]
+            public partial class DocumentDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "DocumentDto.g.cs").Value;
+        Assert.Contains("public File Attachment", source);
+        Assert.DoesNotContain("public FileDto", source);
+    }
+
+    [Fact]
+    public void IgnoreTypeMappingPropagatesTransitivelyToAutoTargets()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class File { public string Path { get; set; } = ""; }
+            public class Document { public IEnumerable<File> Files { get; set; } = []; public string Title { get; set; } = ""; }
+            public class Folder { public IList<Document> Documents { get; set; } = []; }
+            [FromModel(typeof(Folder))]
+            [IgnoreTypeMapping(typeof(File))]
+            public partial class FolderDto { }
+            """);
+
+        // FolderDto.Documents → IList<DocumentDto> (Document is still auto-mapped)
+        var folderDto = Assert.Single(results, r => r.Key == "FolderDto.g.cs").Value;
+        Assert.Contains("DocumentDto", folderDto);
+
+        // Auto-generated DocumentDto.Files should stay as IEnumerable<File>, not IEnumerable<FileDto>
+        var documentDto = Assert.Single(results, r => r.Key == "DocumentDto.g.cs").Value;
+        Assert.Contains("IEnumerable<File>", documentDto);
+        Assert.DoesNotContain("FileDto", documentDto);
+
+        // FileDto should not be generated at all
+        Assert.DoesNotContain("FileDto.g.cs", results.Keys);
+    }
+
+    [Fact]
+    public void IgnoreTypeMappingDoesNotAffectOtherTypesInSameNamespace()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Tag { public string Label { get; set; } = ""; }
+            public class File { public string Path { get; set; } = ""; }
+            public class Document { public Tag Category { get; set; } = new(); public File Attachment { get; set; } = new(); }
+            [FromModel(typeof(Document))]
+            [IgnoreTypeMapping(typeof(File))]
+            public partial class DocumentDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "DocumentDto.g.cs").Value;
+        Assert.Contains("TagDto", source);
+        Assert.Contains("public File Attachment", source);
+        Assert.DoesNotContain("FileDto", source);
+    }
 }

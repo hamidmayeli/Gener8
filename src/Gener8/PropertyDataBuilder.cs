@@ -12,7 +12,8 @@ internal sealed class PropertyDataBuilder(
     AttributeData? attribute,
     INamedTypeSymbol modelSymbol,
     RepositoryKind repositoryKind,
-    IReadOnlyCollection<string>? qualifyingNamespaces = null)
+    IReadOnlyCollection<string>? qualifyingNamespaces = null,
+    IReadOnlyCollection<string>? ignoredTypeMappings = null)
 {
     private readonly List<INamedTypeSymbol> _autoTargetSymbols = [];
     private readonly List<string> _alreadyNullablePropertyNames = [];
@@ -35,9 +36,10 @@ internal sealed class PropertyDataBuilder(
         var existingDtoProps = GetExistingDtoPropertyNames();
 
         var ctorBackedNames = GetConstructorBackedPropertyNames(modelSymbol);
+        var ctorBackedNameSet = new HashSet<string>(ctorBackedNames.Keys);
 
         var properties = new List<PropertyData>();
-        foreach (var property in GetModelProperties(modelSymbol, includeInherited, ctorBackedNames))
+        foreach (var property in GetModelProperties(modelSymbol, includeInherited, ctorBackedNameSet))
         {
             if (ignoredNames.Contains(property.Name)) continue;
 
@@ -97,8 +99,9 @@ internal sealed class PropertyDataBuilder(
                         renameMap,
                         repositoryKind,
                         isUserDeclared: isUserDeclared,
-                        isConstructorBacked: ctorBackedNames.Contains(property.Name),
-                        isForceNullable: isForceNullable
+                        isConstructorBacked: ctorBackedNames.ContainsKey(property.Name),
+                        isForceNullable: isForceNullable,
+                        ctorDefaultInitializer: ctorBackedNames.TryGetValue(property.Name, out var ctorDefault) ? ctorDefault : null
                         )
                     );
             }
@@ -168,6 +171,7 @@ internal sealed class PropertyDataBuilder(
         // Use the non-nullable key (same format as GetTypeMappings) to avoid duplicate entries.
         var key = namedType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString();
         if (typeMappings.ContainsKey(key)) return;
+        if (ignoredTypeMappings?.Contains(key) == true) return;
 
         typeMappings[key] = namedType.Name + "Dto";
         _autoTargetSymbols.Add((INamedTypeSymbol)originalDef);
@@ -198,6 +202,7 @@ internal sealed class PropertyDataBuilder(
             if (a.ConstructorArguments[1].Kind != TypedConstantKind.Type) continue;
             if (a.ConstructorArguments[0].Value is not INamedTypeSymbol sourceType) continue;
             if (a.ConstructorArguments[1].Value is not INamedTypeSymbol targetType) continue;
+            if (ignoredTypeMappings?.Contains(sourceType.ToDisplayString()) == true) continue;
             typeMappings[sourceType.ToDisplayString()] = targetType.ToDisplayString();
         }
 
@@ -230,7 +235,8 @@ internal sealed class PropertyDataBuilder(
         (string Name, string TypeFullName, bool IsNullable)? flattenParent = null,
         bool isUserDeclared = false,
         bool isConstructorBacked = false,
-        bool isForceNullable = false)
+        bool isForceNullable = false,
+        string? ctorDefaultInitializer = null)
     {
         var name = nameOverride
             ?? (renameMap?.TryGetValue(property.Name, out var renamed) == true ? renamed : property.Name);
@@ -254,7 +260,7 @@ internal sealed class PropertyDataBuilder(
             isInitOnly,
             // ForceNullable suppresses required: a nullable DTO property cannot be required in a meaningful way.
             property.IsRequired && !(flattenParent?.IsNullable ?? false) && !isForceNullable,
-            GetInitializer(property),
+            GetInitializer(property) ?? ctorDefaultInitializer,
             modelPropertyName,
             isUserDeclared,
             GetFlattenedData(property, flattenParent),
@@ -548,10 +554,11 @@ internal sealed class PropertyDataBuilder(
         }
     }
 
-    // Returns the set of public property names that are covered by a non-implicit constructor
-    // (PascalCase exact match or capitalize-first for camelCase params). Used to include
-    // get-only model properties that can only be set via that constructor.
-    private static HashSet<string> GetConstructorBackedPropertyNames(INamedTypeSymbol modelSymbol)
+    // Returns a map of public property names → their constructor parameter default value text
+    // for properties covered by a non-implicit constructor (PascalCase exact match or
+    // capitalize-first for camelCase params). Used to include get-only model properties
+    // that can only be set via that constructor, and to propagate default values to the DTO.
+    private static Dictionary<string, string?> GetConstructorBackedPropertyNames(INamedTypeSymbol modelSymbol)
     {
         var propNames = new HashSet<string>();
         foreach (var member in modelSymbol.GetMembers())
@@ -563,13 +570,13 @@ internal sealed class PropertyDataBuilder(
             if (ctor.IsImplicitlyDeclared) continue;
             if (ctor.Parameters.Length == 0) continue;
 
-            var result = new HashSet<string>();
+            var result = new Dictionary<string, string?>();
             var allMatch = true;
             foreach (var param in ctor.Parameters)
             {
                 if (propNames.Contains(param.Name))
                 {
-                    result.Add(param.Name);
+                    result[param.Name] = GetCtorParameterDefault(param);
                 }
                 else
                 {
@@ -577,7 +584,7 @@ internal sealed class PropertyDataBuilder(
                         ? char.ToUpper(param.Name[0]) + param.Name.Substring(1)
                         : param.Name;
                     if (propNames.Contains(cap))
-                        result.Add(cap);
+                        result[cap] = GetCtorParameterDefault(param);
                     else
                     {
                         allMatch = false;
@@ -590,6 +597,14 @@ internal sealed class PropertyDataBuilder(
         }
 
         return [];
+    }
+
+    private static string? GetCtorParameterDefault(IParameterSymbol param)
+    {
+        foreach (var syntaxRef in param.DeclaringSyntaxReferences)
+            if (syntaxRef.GetSyntax() is ParameterSyntax paramSyntax && paramSyntax.Default is not null)
+                return paramSyntax.Default.Value.ToString();
+        return null;
     }
 
     private bool GetIncludeInherited()

@@ -72,4 +72,63 @@ public class PropertyModifierTests
         Assert.Contains("public int Count { get; set; }", source);
         Assert.DoesNotContain("=", source);
     }
+
+    [Fact]
+    public void RecordPrimaryCtorParamWithDefaultIsNotRequired()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public record Product(string Version = "1.0");
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "ProductDto.g.cs").Value;
+        Assert.DoesNotContain("required", source);
+        Assert.Contains("= \"1.0\"", source);
+    }
+
+    [Fact]
+    public void RecordPrimaryCtorNullableParamIsNotRequired()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public enum ProductType { Physical, Digital }
+            public record Product(ProductType? Type = null);
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "ProductDto.g.cs").Value;
+        Assert.DoesNotContain("required", source);
+    }
+
+    [Fact]
+    public void RecordPrimaryCtorParamWithoutDefaultIsRequired()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public record Product(string Name);
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "ProductDto.g.cs").Value;
+        Assert.Contains("public required string Name { get; init; }", source);
+    }
+
+    [Fact]
+    public void RecordPrimaryCtorParamDefaultValueUsedAsInitializer()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public record Product(string Version = "1.0", int Count = 42);
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = Assert.Single(results, r => r.Key == "ProductDto.g.cs").Value;
+        Assert.Contains("= \"1.0\"", source);
+        Assert.Contains("= 42", source);
+    }
 }

@@ -87,7 +87,9 @@ internal static class SourceProducer
             {
                 if(prop.IsRequired) return true;
                 if(target.Model.PrimaryConstructorParams.IsDefault) return false;
-                if(target.Model.PrimaryConstructorParams.Contains(prop.Name)) return true;
+                if(target.Model.PrimaryConstructorParams.Contains(prop.Name)
+                    && !prop.TypeData.IsNullable
+                    && prop.Initializer is null) return true;
                 return false;
             }
 
