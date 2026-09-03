@@ -11,4 +11,5 @@ public sealed class FromModelAttribute(System.Type modelType) : System.Attribute
     public RepositoryType Repository { get; set; }
     public string[] DtoNamespaces { get; set; } = [];
     public string[] ForceNullable { get; set; } = [];
+    public string[] OnlyInclude { get; set; } = [];
 }

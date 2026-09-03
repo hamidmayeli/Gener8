@@ -553,6 +553,78 @@ internal partial class OrderDto { }
 
 ---
 
+## 10. Include only specific properties (`OnlyInclude`)
+
+A whitelist alternative to `Ignore`. When `OnlyInclude` is set, **only** the listed properties are extracted from the model — all others are dropped. This is useful when a model has many properties but the DTO needs only a small subset.
+
+```csharp
+public class Product
+{
+    public string Name    { get; set; } = "";
+    public decimal Price  { get; set; }
+    public string Sku     { get; set; } = "";
+    public string InternalCode { get; set; } = "";
+}
+
+[FromModel(typeof(Product), OnlyInclude = [nameof(Product.Name), nameof(Product.Price)])]
+public partial class ProductSummaryDto { }
+
+// Generated ProductSummaryDto.g.cs:
+// public string  Name  { get; set; }
+// public decimal Price { get; set; }
+// (Sku and InternalCode are not present)
+```
+
+### Nested property paths
+
+`OnlyInclude` supports dotted paths to restrict which properties are included in **auto-generated companion DTOs**. When a model property's type is itself in a qualifying namespace (via `DtoNamespaces` or the model's own namespace), the sub-paths after the dot become the `OnlyInclude` for that nested companion DTO, recursively.
+
+```csharp
+// Models in namespace MyApp.Models (auto-qualifying):
+public class Address  { public string Street { get; set; } = ""; public string PostCode { get; set; } = ""; }
+public class Customer { public string FullName { get; set; } = ""; public Address Address { get; set; } = new(); }
+public class Order    { public int Id { get; set; } public Customer Customer { get; set; } = new(); }
+
+// DTOs:
+[FromModel(typeof(Order), OnlyInclude = ["Id", "Customer.FullName", "Customer.Address.PostCode"])]
+public partial class OrderDto { }
+
+// Generated OrderDto.g.cs:
+//   public int         Id       { get; set; }
+//   public CustomerDto Customer { get; set; }
+//
+// Auto-generated CustomerDto.g.cs (OnlyInclude = ["FullName", "Address.PostCode"]):
+//   public string     FullName { get; set; }
+//   public AddressDto Address  { get; set; }
+//
+// Auto-generated AddressDto.g.cs (OnlyInclude = ["PostCode"]):
+//   public string PostCode { get; set; }
+```
+
+- A plain name (`"Customer"`) includes the whole property with no restriction on the companion DTO's properties.
+- A dotted path restricts the companion DTO. When both a plain name and dotted paths exist for the same property, the plain name wins (all properties included).
+- Deep paths (`"A.B.C"`) are applied recursively: `A` → sub-paths `["B.C"]` → `B` → sub-paths `["C"]`.
+- Sub-path filtering only has an effect for properties whose types trigger auto-DTO generation. For simple types (`string`, `int`, etc.) or types outside qualifying namespaces, the dotted path is treated as a plain property inclusion.
+
+### Constraints
+
+- **`OnlyInclude` and `Ignore` cannot be used together** — they serve opposite purposes (whitelist vs. blacklist). Use one or the other.
+- **All listed names must exist on the model** — the generator validates each top-level name in `OnlyInclude` against the model's public properties. Dotted paths' first segment is validated; deeper segments are not validated by the generator.
+- **GEN004** is raised when `OnlyInclude` and `Ignore` are both set on the same DTO.
+- **GEN005** is raised for each top-level name in `OnlyInclude` that does not match any public property on the model.
+
+### Interaction with other features
+
+| Feature | Behaviour |
+|---|---|
+| `Flatten` | A property in both `OnlyInclude` and `Flatten` is flattened as normal (all sub-properties inlined). |
+| `ForceNullable` | Can be combined freely; only the included properties are affected. |
+| `RenameProperty` | Works normally on included properties. |
+| `IncludeInherited` | Inherited properties are eligible for `OnlyInclude` just like declared ones. |
+| `DtoNamespaces` | Dotted paths in `OnlyInclude` propagate `OnlyInclude` into the auto-generated companion DTOs. |
+
+---
+
 ## Planned features
 
 The following features are on the roadmap but not yet implemented:

@@ -28,6 +28,22 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor OnlyIncludeIgnoreConflict = new(
+        id: "GEN004",
+        title: "OnlyInclude and Ignore cannot be used together",
+        messageFormat: "'{0}' uses both OnlyInclude and Ignore. Use OnlyInclude to whitelist properties, or Ignore to blacklist them, not both.",
+        category: "Gener8",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor InvalidOnlyIncludePath = new(
+        id: "GEN005",
+        title: "Invalid OnlyInclude property path",
+        messageFormat: "OnlyInclude: '{0}' does not exist as a property on model '{1}'",
+        category: "Gener8",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor UnexpectedError = new(
         id: "GEN999",
         title: "Unexpected generator error",
