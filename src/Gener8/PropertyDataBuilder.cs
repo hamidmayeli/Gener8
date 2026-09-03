@@ -13,7 +13,8 @@ internal sealed class PropertyDataBuilder(
     INamedTypeSymbol modelSymbol,
     RepositoryKind repositoryKind,
     IReadOnlyCollection<string>? qualifyingNamespaces = null,
-    IReadOnlyCollection<string>? ignoredTypeMappings = null)
+    IReadOnlyCollection<string>? ignoredTypeMappings = null,
+    string dtoSuffix = "Dto")
 {
     private readonly List<INamedTypeSymbol> _autoTargetSymbols = [];
     private readonly List<string> _alreadyNullablePropertyNames = [];
@@ -173,7 +174,7 @@ internal sealed class PropertyDataBuilder(
         if (typeMappings.ContainsKey(key)) return;
         if (ignoredTypeMappings?.Contains(key) == true) return;
 
-        typeMappings[key] = namedType.Name + "Dto";
+        typeMappings[key] = namedType.Name + dtoSuffix;
         _autoTargetSymbols.Add((INamedTypeSymbol)originalDef);
     }
 

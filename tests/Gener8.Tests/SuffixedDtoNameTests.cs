@@ -94,6 +94,49 @@ public class SuffixedDtoNameTests
     }
 
     [Fact]
+    public void AutoDtoPropertyFollowTheSameSuffix()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            namespace MyApp.Models
+            {
+                public class Customer { public string Name { get; set; } = ""; }
+                public class Order { public Customer Customer { get; set; } = new(); }
+            }
+            namespace MyApp.Views
+            {
+                [FromModel(typeof(MyApp.Models.Order))]
+                public partial class OrderView { }
+            }
+            """);
+
+        Assert.Contains(results.Keys, k => k.EndsWith("CustomerView.g.cs"));
+        Assert.Contains(results.Keys, k => k.EndsWith("CustomerViewExtensions.g.cs"));
+
+        var source = results.First(r => r.Key.EndsWith("CustomerViewExtensions.g.cs")).Value;
+        Assert.Contains("ToView(this global::MyApp.Models.Customer", source);
+        Assert.Contains("ToModel(this CustomerView", source);
+    }
+
+    [Fact]
+    public void AutoDtoPropertyCallsCorrectSuffixedMethod()
+    {
+        // When the nested mapped DTO also follows the suffix convention, the chained call
+        // inside ToView() should call .ToView() not .ToDto().
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            public class Address { public string Street { get; set; } = ""; }
+            public partial class AddressView { }
+            public class Order { public Address ShippingAddress { get; set; } = new(); }
+            [FromModel(typeof(Order))]
+            public partial class OrderView { }
+            """);
+
+        var source = results["OrderViewExtensions.g.cs"];
+        Assert.Contains("ShippingAddress = model.ShippingAddress.ToView(),", source);
+    }
+
+    [Fact]
     public void TypeMappedNestedPropertyCallsCorrectSuffixedMethod()
     {
         // When the nested mapped DTO also follows the suffix convention, the chained call
