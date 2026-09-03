@@ -14,15 +14,20 @@ internal sealed class PropertyDataBuilder(
     RepositoryKind repositoryKind,
     IReadOnlyCollection<string>? qualifyingNamespaces = null,
     IReadOnlyCollection<string>? ignoredTypeMappings = null,
-    string dtoSuffix = "Dto")
+    string dtoSuffix = "Dto",
+    IReadOnlyCollection<string>? onlyIncludePaths = null)
 {
-    private readonly List<INamedTypeSymbol> _autoTargetSymbols = [];
+    private readonly List<(INamedTypeSymbol Symbol, IReadOnlyCollection<string>? OnlyIncludePaths)> _autoTargetSymbols = [];
     private readonly List<string> _alreadyNullablePropertyNames = [];
     private readonly List<string> _iSetWithInitializerPropertyNames = [];
+    private readonly List<string> _invalidOnlyIncludePaths = [];
+    private bool _hasOnlyIncludeIgnoreConflict;
 
-    public IReadOnlyCollection<INamedTypeSymbol> AutoTargetSymbols => _autoTargetSymbols;
+    public IReadOnlyCollection<(INamedTypeSymbol Symbol, IReadOnlyCollection<string>? OnlyIncludePaths)> AutoTargetSymbols => _autoTargetSymbols;
     public IReadOnlyList<string> AlreadyNullablePropertyNames => _alreadyNullablePropertyNames;
     public IReadOnlyList<string> ISetWithInitializerPropertyNames => _iSetWithInitializerPropertyNames;
+    public IReadOnlyList<string> InvalidOnlyIncludePaths => _invalidOnlyIncludePaths;
+    public bool HasOnlyIncludeIgnoreConflict => _hasOnlyIncludeIgnoreConflict;
 
     public IReadOnlyCollection<PropertyData> GetProperties()
     {
@@ -30,8 +35,13 @@ internal sealed class PropertyDataBuilder(
         var flattenNames = GetFlattenProperties();
         var flattenPrefix = GetFlattenPrefix();
         var includeInherited = GetIncludeInherited();
+        var onlyInclude = ParseOnlyInclude();
+
+        if (onlyInclude is not null && ignoredNames.Count > 0)
+            _hasOnlyIncludeIgnoreConflict = true;
+
         var typeMappings = GetTypeMappings();
-        PopulateInferredMappings(typeMappings, includeInherited);
+        PopulateInferredMappings(typeMappings, includeInherited, onlyInclude);
         var renameMap = GetRenameMap();
         var forceNullableNames = GetForceNullableProperties();
         var existingDtoProps = GetExistingDtoPropertyNames();
@@ -43,6 +53,7 @@ internal sealed class PropertyDataBuilder(
         foreach (var property in GetModelProperties(modelSymbol, includeInherited, ctorBackedNameSet))
         {
             if (ignoredNames.Contains(property.Name)) continue;
+            if (onlyInclude is not null && !onlyInclude.ContainsKey(property.Name)) continue;
 
             if (flattenNames.Contains(property.Name))
             {
@@ -108,13 +119,24 @@ internal sealed class PropertyDataBuilder(
             }
         }
 
+        if (onlyInclude is not null)
+        {
+            var allModelPropNames = GetAllModelPropertyNames(includeInherited);
+            foreach (var key in onlyInclude.Keys)
+                if (!allModelPropNames.Contains(key))
+                    _invalidOnlyIncludePaths.Add(key);
+        }
+
         return properties;
     }
 
     // Scans model properties for complex types in qualifying namespaces and adds inferred
     // TypeMappings (e.g. Customer -> CustomerDto). Uses symbol identity to avoid overriding
     // explicit [TypeMapping] attributes, and the non-nullable key format for consistency.
-    private void PopulateInferredMappings(Dictionary<string, string> typeMappings, bool includeInherited)
+    private void PopulateInferredMappings(
+        Dictionary<string, string> typeMappings,
+        bool includeInherited,
+        Dictionary<string, List<string>?>? onlyInclude)
     {
         if (qualifyingNamespaces is null || qualifyingNamespaces.Count == 0) return;
 
@@ -132,18 +154,23 @@ internal sealed class PropertyDataBuilder(
         }
 
         foreach (var property in GetModelProperties(modelSymbol, includeInherited))
-            TryAddInferredMapping(property.Type, typeMappings, explicitSourceSymbols);
+        {
+            if (onlyInclude is not null && !onlyInclude.ContainsKey(property.Name)) continue;
+            var subPaths = onlyInclude is not null && onlyInclude.TryGetValue(property.Name, out var sp) ? sp : null;
+            TryAddInferredMapping(property.Type, typeMappings, explicitSourceSymbols, (IReadOnlyCollection<string>?)subPaths);
+        }
     }
 
     private void TryAddInferredMapping(
         ITypeSymbol type,
         Dictionary<string, string> typeMappings,
-        HashSet<ISymbol> explicitSourceSymbols)
+        HashSet<ISymbol> explicitSourceSymbols,
+        IReadOnlyCollection<string>? subPaths)
     {
         // Recurse into array element types (e.g. Product[] -> ProductDto).
         if (type is IArrayTypeSymbol arrayType)
         {
-            TryAddInferredMapping(arrayType.ElementType, typeMappings, explicitSourceSymbols);
+            TryAddInferredMapping(arrayType.ElementType, typeMappings, explicitSourceSymbols, subPaths);
             return;
         }
 
@@ -151,7 +178,7 @@ internal sealed class PropertyDataBuilder(
         if (type is INamedTypeSymbol { IsGenericType: true, Arity: 1 } collType &&
             IsSupportedMappedCollection(collType))
         {
-            TryAddInferredMapping(collType.TypeArguments[0], typeMappings, explicitSourceSymbols);
+            TryAddInferredMapping(collType.TypeArguments[0], typeMappings, explicitSourceSymbols, subPaths);
             return;
         }
 
@@ -175,7 +202,8 @@ internal sealed class PropertyDataBuilder(
         if (ignoredTypeMappings?.Contains(key) == true) return;
 
         typeMappings[key] = namedType.Name + dtoSuffix;
-        _autoTargetSymbols.Add((INamedTypeSymbol)originalDef);
+        var sym = (INamedTypeSymbol)originalDef;
+        _autoTargetSymbols.Add((sym, subPaths));
     }
 
     private HashSet<string> GetExistingDtoPropertyNames()
@@ -225,6 +253,72 @@ internal sealed class PropertyDataBuilder(
         }
 
         return ignoredNames;
+    }
+
+    // Parses OnlyInclude paths from the attribute or the onlyIncludePaths parameter.
+    // Returns null when no OnlyInclude is set (include all properties).
+    // For paths with dots ("Customer.FullName"), the first segment is the key and the
+    // remaining path is a sub-path stored as the value. A plain name maps to a null value
+    // (include the whole property without restricting its sub-properties).
+    private Dictionary<string, List<string>?>? ParseOnlyInclude()
+    {
+        IReadOnlyCollection<string>? paths = null;
+
+        if (onlyIncludePaths is not null)
+        {
+            paths = onlyIncludePaths;
+        }
+        else if (attribute is not null)
+        {
+            var list = new List<string>();
+            foreach (var namedArg in attribute.NamedArguments)
+            {
+                if (namedArg.Key != "OnlyInclude") continue;
+                foreach (var item in namedArg.Value.Values)
+                    if (item.Value is string name)
+                        list.Add(name);
+            }
+            if (list.Count > 0) paths = list;
+        }
+
+        if (paths is null) return null;
+
+        var result = new Dictionary<string, List<string>?>();
+        foreach (var path in paths)
+        {
+            var dotIndex = path.IndexOf('.');
+            if (dotIndex < 0)
+            {
+                // Plain name overrides any previously accumulated sub-paths for the same key.
+                result[path] = null;
+            }
+            else
+            {
+                var head = path.Substring(0, dotIndex);
+                var tail = path.Substring(dotIndex + 1);
+                if (result.TryGetValue(head, out var existing) && existing is null)
+                    continue; // plain name already set — ignore dotted paths for this key
+                if (!result.ContainsKey(head))
+                    result[head] = [];
+                result[head]!.Add(tail);
+            }
+        }
+        return result.Count > 0 ? result : null;
+    }
+
+    private HashSet<string> GetAllModelPropertyNames(bool includeInherited)
+    {
+        var names = new HashSet<string>();
+        var current = modelSymbol;
+        while (current is not null && current.SpecialType != SpecialType.System_Object)
+        {
+            foreach (var member in current.GetMembers())
+                if (member is IPropertySymbol { DeclaredAccessibility: Accessibility.Public, IsStatic: false })
+                    names.Add(member.Name);
+            if (!includeInherited) break;
+            current = current.BaseType;
+        }
+        return names;
     }
 
     private static PropertyData BuildPropertyData(

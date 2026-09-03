@@ -59,6 +59,26 @@ internal static class SyntaxTransformer
         var builder = new PropertyDataBuilder(classSymbol, attr, modelSymbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings, dtoSuffix);
         var properties = builder.GetProperties();
 
+        if (builder.HasOnlyIncludeIgnoreConflict)
+        {
+            return new ClassTargetResult(null, [Diagnostic.Create(
+                Diagnostics.OnlyIncludeIgnoreConflict,
+                context.Node.GetLocation(),
+                classSymbol.Name)]);
+        }
+
+        if (builder.InvalidOnlyIncludePaths.Count > 0)
+        {
+            var errors = new List<Diagnostic>(builder.InvalidOnlyIncludePaths.Count);
+            foreach (var path in builder.InvalidOnlyIncludePaths)
+                errors.Add(Diagnostic.Create(
+                    Diagnostics.InvalidOnlyIncludePath,
+                    context.Node.GetLocation(),
+                    path,
+                    modelSymbol.Name));
+            return new ClassTargetResult(null, errors);
+        }
+
         if (builder.AlreadyNullablePropertyNames.Count > 0)
         {
             var errors = new List<Diagnostic>(builder.AlreadyNullablePropertyNames.Count);
@@ -125,7 +145,7 @@ internal static class SyntaxTransformer
     // Recursively synthesises TargetClass records for all transitive auto-DTO types.
     // Returns a flat list (depth-first) safe to iterate and de-duplicate in the pipeline.
     private static IReadOnlyCollection<TargetClass> BuildAutoTargets(
-        IReadOnlyCollection<INamedTypeSymbol> symbols,
+        IReadOnlyCollection<(INamedTypeSymbol Symbol, IReadOnlyCollection<string>? OnlyIncludePaths)> symbols,
         string? targetNs,
         string accessibility,
         IReadOnlyCollection<string> qualifyingNamespaces,
@@ -140,7 +160,7 @@ internal static class SyntaxTransformer
     }
 
     private static void CollectAutoTargets(
-        IReadOnlyCollection<INamedTypeSymbol> symbols,
+        IReadOnlyCollection<(INamedTypeSymbol Symbol, IReadOnlyCollection<string>? OnlyIncludePaths)> symbols,
         string? targetNs,
         string accessibility,
         IReadOnlyCollection<string> qualifyingNamespaces,
@@ -150,7 +170,7 @@ internal static class SyntaxTransformer
         HashSet<string> visited,
         List<TargetClass> result)
     {
-        foreach (var symbol in symbols)
+        foreach (var (symbol, symbolOnlyIncludePaths) in symbols)
         {
             var key = symbol.ToDisplayString();
             if (!visited.Add(key)) continue;
@@ -159,8 +179,9 @@ internal static class SyntaxTransformer
             var modelFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
             // No classSymbol/attribute for synthesised DTOs — all options default to empty/false.
-            // Propagate repositoryKind, ignoredTypeMappings, and dtoSuffix so child DTOs inherit the same suffix.
-            var builder = new PropertyDataBuilder(null, null, symbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings, dtoSuffix);
+            // Propagate repositoryKind, ignoredTypeMappings, dtoSuffix, and OnlyIncludePaths so
+            // child DTOs inherit the same suffix and property filter from their parent.
+            var builder = new PropertyDataBuilder(null, null, symbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings, dtoSuffix, symbolOnlyIncludePaths);
             var props = builder.GetProperties();
 
             // Depth-first: add nested auto-targets before this one so dependencies come first.
