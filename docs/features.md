@@ -625,6 +625,71 @@ public partial class OrderDto { }
 
 ---
 
+---
+
+## 11. Dictionary properties
+
+Dictionary properties are copied to the DTO with their key and value types preserved. When either the key or value type is a domain class in a qualifying namespace (via `DtoNamespaces` or an explicit `[TypeMapping]`), it is remapped to the corresponding DTO type and the generated extension methods use `ToDictionary(...)` for the conversion.
+
+### Supported dictionary types
+
+| Type | Behaviour |
+|---|---|
+| `Dictionary<K, V>` | Copied as-is; key/value types remapped if in qualifying namespace |
+| `IDictionary<K, V>` | Copied as-is (or remapped to `Dictionary<K, V>` for DynamoDB) |
+| `IReadOnlyDictionary<K, V>` | Copied as-is (or remapped to `Dictionary<K, V>` for DynamoDB) |
+| `SortedList<K, V>` | Copied as-is; key/value types remapped if in qualifying namespace |
+| `SortedDictionary<K, V>` | Copied as-is; key/value types remapped if in qualifying namespace |
+
+### Type remapping for dictionary arguments
+
+When `DtoNamespaces` or `[TypeMapping]` causes a key or value type to be remapped, the DTO property uses the remapped type and the extension methods project via `ToDictionary`:
+
+```csharp
+// Models
+public record Tag { public string Label { get; set; } = ""; }
+public class Order { public Dictionary<int, Tag> Tags { get; set; } = []; }
+
+// DTO
+[FromModel(typeof(Order), DtoNamespaces = ["MyApp.Models"])]
+public partial class OrderDto { }
+
+// Generated OrderDto.g.cs:
+// public System.Collections.Generic.Dictionary<int, TagDto> Tags { get; set; }
+
+// Generated OrderDtoExtensions.g.cs:
+// ToModel:  Tags = dto.Tags.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToModel()),
+// ToDto:    Tags = model.Tags.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToDto()),
+```
+
+The same applies to the key type — if the key is a domain class it is remapped and `kvp.Key.ToDto()` / `kvp.Key.ToModel()` is generated.
+
+### DynamoDB: concrete type requirement
+
+The DynamoDB SDK instantiates DTO instances itself and cannot construct interface types. When `Repository = RepositoryType.DynamoDb`, abstract dictionary interfaces are remapped to `Dictionary<K, V>`:
+
+```csharp
+// Model:
+public IDictionary<string, int> Counts { get; set; }
+
+// Generated DTO property (DynamoDB):
+public System.Collections.Generic.Dictionary<string, int> Counts { get; set; }
+
+// Generated ToDto body:
+Counts = model.Counts.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+```
+
+**GEN006** is raised as an error when `Repository = RepositoryType.DynamoDb` and a dictionary property has a non-`string` key type. DynamoDB maps require string keys at the API level.
+
+```csharp
+// ERROR GEN006: property 'Items' uses a dictionary with a non-string key.
+public IDictionary<int, string> Items { get; set; }
+```
+
+Use a `List<T>` of key-value pair objects instead, or ensure the key type maps to `string`.
+
+---
+
 ## Planned features
 
 The following features are on the roadmap but not yet implemented:

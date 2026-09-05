@@ -41,10 +41,11 @@ public class TestFixture : IAsyncLifetime
             {
                 var client = sp.GetRequiredService<MongoClient>();
                 // MongoDB automatically creates the database on the first write
-                return client.GetDatabase("ProductDto");
+                return client.GetDatabase("All");
             })
             .AddTransient<IRepository<Product>, ProductRepository>()
             .AddTransient<IRepository<Process>, ProcessRepository>()
+            .AddTransient<IRepository<Inventory>, InventoryRepository>()
             .AddTransient<IMongoDbRepositoryContext, MongoDbRepositoryContext>();
 
         _serviceProvider = services.BuildServiceProvider();

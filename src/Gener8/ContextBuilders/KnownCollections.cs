@@ -3,13 +3,14 @@ using System.Collections.Generic;
 
 namespace Gener8.ContextBuilders;
 
-// The single source of truth for the collection types the generator understands.
+// The single source of truth for the collection and dictionary types the generator understands.
 // Previously these type-name lists were duplicated across four separate predicates.
 internal static class KnownCollections
 {
     public const string SetInterfaceDefinition = "System.Collections.Generic.ISet<T>";
     public const string HashSetName = "System.Collections.Generic.HashSet";
     public const string ListName = "System.Collections.Generic.List";
+    public const string DictionaryName = "System.Collections.Generic.Dictionary";
 
     // Generic collection definitions whose single type argument participates in element type mapping.
     private static readonly HashSet<string> _mappable =
@@ -33,6 +34,23 @@ internal static class KnownCollections
         "System.Collections.Generic.IEnumerable<T>",
         "System.Collections.Generic.IList<T>",
         "System.Collections.Generic.ICollection<T>",
+    ];
+
+    // All two-argument dictionary types whose key/value arguments participate in type-mapping.
+    private static readonly HashSet<string> _dictionaries =
+    [
+        "System.Collections.Generic.Dictionary<TKey, TValue>",
+        "System.Collections.Generic.IDictionary<TKey, TValue>",
+        "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>",
+        "System.Collections.Generic.SortedList<TKey, TValue>",
+        "System.Collections.Generic.SortedDictionary<TKey, TValue>",
+    ];
+
+    // Dictionary interfaces a DynamoDB DTO must replace with a concrete Dictionary<K,V>.
+    private static readonly HashSet<string> _remappableDictionaryInterfaces =
+    [
+        "System.Collections.Generic.IDictionary<TKey, TValue>",
+        "System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>",
     ];
 
     public static bool IsSet(ITypeSymbol type)
@@ -59,9 +77,20 @@ internal static class KnownCollections
             : definition.Substring(0, definition.IndexOf('<'));
     }
 
+    // True when the type is a supported two-argument dictionary whose arguments can be remapped.
+    public static bool IsKnownDictionary(INamedTypeSymbol namedType)
+        => namedType.Arity == 2 && _dictionaries.Contains(Definition(namedType));
+
+    // True when the type is a dictionary interface that DynamoDB cannot instantiate directly.
+    public static bool IsRemappableDictionaryInterface(INamedTypeSymbol namedType)
+        => _remappableDictionaryInterfaces.Contains(Definition(namedType));
+
     public static string Set(string elementType) => $"{HashSetName}<{elementType}>";
 
     public static string List(string elementType) => $"{ListName}<{elementType}>";
+
+    public static string Dictionary(string keyType, string valueType)
+        => $"{DictionaryName}<{keyType}, {valueType}>";
 
     private static string Definition(INamedTypeSymbol namedType)
         => namedType.ConstructedFrom.ToDisplayString();

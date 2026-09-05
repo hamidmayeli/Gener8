@@ -44,6 +44,14 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor DynamoDbDictionaryNonStringKey = new(
+        id: "GEN006",
+        title: "DynamoDB dictionary with non-string key",
+        messageFormat: "Property '{0}' on '{1}' uses a dictionary with a non-string key. DynamoDB maps require string keys. Consider using a list of key-value pair objects instead.",
+        category: "Gener8",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor UnexpectedError = new(
         id: "GEN999",
         title: "Unexpected generator error",

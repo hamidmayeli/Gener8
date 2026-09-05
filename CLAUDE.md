@@ -24,7 +24,7 @@ src/
 │   ├── FromModelGenerator.cs             — IIncrementalGenerator implementation
 │   ├── SyntaxTransformer.cs              — Roslyn pipeline: predicate + ExtractClassTarget
 │   ├── SourceProducer.cs                 — Emits partial class, extension methods, concrete repository
-│   ├── Diagnostics.cs                    — GEN001–GEN005 + GEN999 descriptors
+│   ├── Diagnostics.cs                    — GEN001–GEN006 + GEN999 descriptors
 │   ├── BuildDiagnostic.cs                — immutable diagnostic payload used by builders
 │   ├── RepositoryProfile.cs              — per-backend differences (usings, attributes, base class)
 │   ├── TypeNames.cs                      — display-string helpers + the model→DTO name convention
@@ -48,7 +48,8 @@ src/
 │   │       ├── ITypeMappingRule.cs       — mapping rule abstraction
 │   │       ├── DirectMappingRule.cs      — direct type mapping rule
 │   │       ├── CollectionMappingRule.cs  — collection element mapping rule
-│   │       └── ArrayMappingRule.cs       — array element mapping rule
+│   │       ├── ArrayMappingRule.cs       — array element mapping rule
+│   │       └── DictionaryMappingRule.cs  — dictionary key/value type mapping rule
 │   └── Contexts/                         — immutable records used across the incremental pipeline
 │       ├── AutoDtoTarget.cs
 │       ├── ClassTargetResult.cs
@@ -160,7 +161,9 @@ Conventions worth knowing before editing:
 - `[IgnoreTypeMapping(typeof(T))]` — suppresses auto type mapping for `T` when `DtoNamespaces` is active
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; `ToModel` reconstructs the nested parent (null-safe for nullable parents)
-- DynamoDB only: abstract collection interfaces are remapped to `List<T>` (`ISet<T>` to `HashSet<T>`) in the DTO because the AWS SDK instantiates the DTO itself; `ToDto` then uses collection spread. MongoDB needs no remapping — its driver can instantiate abstract collection types
+- Dictionary support: `Dictionary<K,V>`, `IDictionary<K,V>`, `IReadOnlyDictionary<K,V>`, `SortedList<K,V>`, `SortedDictionary<K,V>` are supported; key and value types participate in type mapping when in a qualifying namespace; extension methods use `ToDictionary(...)` when either argument is remapped
+- DynamoDB only: abstract collection interfaces are remapped to `List<T>` (`ISet<T>` to `HashSet<T>`) in the DTO because the AWS SDK instantiates the DTO itself; `ToDto` then uses collection spread. Abstract dictionary interfaces (`IDictionary<K,V>`, `IReadOnlyDictionary<K,V>`) are remapped to `Dictionary<K,V>`; `ToDto` uses `ToDictionary(...)`. MongoDB needs no remapping — its driver can instantiate abstract collection/dictionary types
+- GEN006: raised (error) when a DynamoDB DTO has a dictionary property with a non-string key type
 - DynamoDB: `enum` properties get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]` (from `Gener8.Converters` in `Gener8.Extensions.DynamoDB`)
 - MongoDB: `enum` properties get `[BsonRepresentation(BsonType.String)]`
 - `Repository = RepositoryType.DynamoDb|MongoDb|Custom` — generates a concrete `{Model.Name}Repository` class; base classes come from `Gener8.Extensions.DynamoDB`, `Gener8.Extensions.MongoDB`, or `Gener8.Abstractions` respectively

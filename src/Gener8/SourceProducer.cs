@@ -156,6 +156,10 @@ internal static class SourceProducer
                 {
                     args.Append($"dto.{dtoPropName} is null ? GetDefault{dtoPropName}(dto) : {BuildForceNullableNonNullRhs(propData)}");
                 }
+                else if (typeData?.IsDictionary == true && typeData.HasGenericTypeMapping)
+                {
+                    args.Append(BuildDictionaryToModelMapping($"dto.{dtoPropName}", typeData));
+                }
                 else if (typeData?.HasTypeMapping == true)
                 {
                     var nc = typeData.IsNullable ? "?" : "";
@@ -197,6 +201,10 @@ internal static class SourceProducer
                     {
                         dtoRead = $"dto.{prop.Name} is null ? GetDefault{prop.Name}(dto) : {BuildForceNullableNonNullRhs(prop)}";
                     }
+                    else if (prop.TypeData.IsDictionary && prop.TypeData.HasGenericTypeMapping)
+                    {
+                        dtoRead = BuildDictionaryToModelMapping($"dto.{prop.Name}", prop.TypeData);
+                    }
                     else
                     {
                         var nc = prop.TypeData.IsNullable ? "?" : "";
@@ -227,6 +235,10 @@ internal static class SourceProducer
                 if (prop.IsForceNullable)
                 {
                     dtoRead = $"dto.{prop.Name} is null ? GetDefault{prop.Name}(dto) : {BuildForceNullableNonNullRhs(prop)}";
+                }
+                else if (prop.TypeData.IsDictionary && prop.TypeData.HasGenericTypeMapping)
+                {
+                    dtoRead = BuildDictionaryToModelMapping($"dto.{prop.Name}", prop.TypeData);
                 }
                 else
                 {
@@ -300,7 +312,11 @@ internal static class SourceProducer
             else
             {
                 var modelPropName = prop.ModelPropertyName ?? prop.Name;
-                if (prop.IsForceNullable)
+                if (prop.TypeData.IsDictionary && (prop.TypeData.HasGenericTypeMapping || prop.TypeData.NeedsSpreadAssignment))
+                {
+                    rhs = BuildDictionaryToDtoMapping($"model.{modelPropName}", prop.TypeData);
+                }
+                else if (prop.IsForceNullable)
                 {
                     // The model property is non-nullable (ForceNullable only makes the DTO nullable).
                     // No null-conditional on the model side.
@@ -386,6 +402,31 @@ internal static class SourceProducer
         return isNullable
             ? $"{source} is null ? null : {collectionExpr}"
             : collectionExpr;
+    }
+
+    // Builds the expression to convert a DTO dictionary back to the model's dictionary type.
+    // Key/value use .ToModel() when their types were remapped; otherwise copied directly.
+    private static string BuildDictionaryToModelMapping(string source, PropertyTypeData typeData)
+    {
+        var keyExpr = typeData.DictionaryKeyToDtoMethodName != null ? "kvp.Key.ToModel()" : "kvp.Key";
+        var valueExpr = typeData.TypeMappedToDtoMethodName != null ? "kvp.Value.ToModel()" : "kvp.Value";
+        var convert = $"{source}.ToDictionary(kvp => {keyExpr}, kvp => {valueExpr})";
+        return typeData.IsNullable ? $"{source} is null ? null : {convert}" : convert;
+    }
+
+    // Builds the expression to project a model dictionary into the DTO's dictionary type.
+    // Key/value use their configured ToDto method when remapped; otherwise copied directly.
+    // Also handles IDictionary<K,V> -> Dictionary<K,V> remap (NeedsSpreadAssignment without type mapping).
+    private static string BuildDictionaryToDtoMapping(string source, PropertyTypeData typeData)
+    {
+        var keyExpr = typeData.DictionaryKeyToDtoMethodName != null
+            ? $"kvp.Key.{typeData.DictionaryKeyToDtoMethodName}()"
+            : "kvp.Key";
+        var valueExpr = typeData.TypeMappedToDtoMethodName != null
+            ? $"kvp.Value.{typeData.TypeMappedToDtoMethodName}()"
+            : "kvp.Value";
+        var convert = $"{source}.ToDictionary(kvp => {keyExpr}, kvp => {valueExpr})";
+        return typeData.IsNullable ? $"{source} is null ? null : {convert}" : convert;
     }
 
     // Builds the non-null branch RHS for a force-nullable property in ToModel.

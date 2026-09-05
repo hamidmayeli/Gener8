@@ -8,7 +8,7 @@ namespace Gener8.ContextBuilders;
 //
 // Mapping recognition is delegated to an ordered rule list; this class only layers on the
 // concerns that apply regardless of which rule matched: nullability, the ISet<T> cast needed
-// by ToModel, and the repository's concrete-collection requirement.
+// by ToModel, and the repository's concrete-collection/dictionary requirement.
 internal sealed class PropertyTypeResolver(TypeMappingResolver mappings, RepositoryProfile repository)
 {
     private static readonly ITypeMappingRule[] _rules =
@@ -16,6 +16,7 @@ internal sealed class PropertyTypeResolver(TypeMappingResolver mappings, Reposit
         new DirectMappingRule(),
         new CollectionMappingRule(),
         new ArrayMappingRule(),
+        new DictionaryMappingRule(),
     ];
 
     public PropertyTypeData Resolve(IPropertySymbol property, bool isParentNullable, bool forceNullable)
@@ -42,11 +43,16 @@ internal sealed class PropertyTypeResolver(TypeMappingResolver mappings, Reposit
             toModelCastType = KnownCollections.Set(
                 ((INamedTypeSymbol)property.Type).TypeArguments[0].ToDisplayString());
 
+        // Whether the property's original type is a known dictionary.
+        var isDictionary = property.Type is INamedTypeSymbol { IsGenericType: true, Arity: 2 } dt
+            && KnownCollections.IsKnownDictionary(dt);
+
         // An explicit mapping of the property's own type wins over the repository remap.
         var needsSpreadAssignment = false;
         if (!hasDirectMapping
             && repository.RemapsAbstractCollections
-            && RepositoryCollectionRemapper.TryRemap(property.Type, mapped?.ElementType, out var concreteType))
+            && RepositoryCollectionRemapper.TryRemap(
+                property.Type, mapped?.ElementType, mapped?.DictionaryMappedKeyType, out var concreteType))
         {
             typeDisplay = TypeNames.WithNullable(concreteType, isNullable);
             needsSpreadAssignment = true;
@@ -62,7 +68,9 @@ internal sealed class PropertyTypeResolver(TypeMappingResolver mappings, Reposit
             EnumTypes.CollectionElementType(property),
             IsNullableValueType(property, isNullable, mapped, needsSpreadAssignment),
             toModelCastType,
-            mapped?.ToDtoMethodName);
+            mapped?.ToDtoMethodName,
+            isDictionary,
+            mapped?.DictionaryKeyToDtoMethodName);
     }
 
     // True when the '?' suffix represents Nullable<T> (a struct) rather than an NRT annotation.

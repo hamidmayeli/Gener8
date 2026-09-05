@@ -55,6 +55,7 @@ public class TestFixture : IAsyncLifetime
             .AddSingleton<IDynamoDBContext, DynamoDBContext>()
             .AddTransient<IRepository<Product>, ProductRepository>()
             .AddTransient<IRepository<Process>, ProcessRepository>()
+            .AddTransient<IRepository<Inventory>, InventoryRepository>()
             .AddTransient<IDynamoDbRepositoryContext, DynamoDbRepositoryContext>();
 
         _serviceProvider = services.BuildServiceProvider();
@@ -91,6 +92,22 @@ public class TestFixture : IAsyncLifetime
         request = new CreateTableRequest
         {
             TableName = "Processes",
+            AttributeDefinitions =
+            [
+                new AttributeDefinition("Id", ScalarAttributeType.S)
+            ],
+            KeySchema =
+            [
+                new KeySchemaElement("Id", KeyType.HASH)
+            ],
+            BillingMode = BillingMode.PAY_PER_REQUEST
+        };
+
+        await dynamoDbClient.CreateTableAsync(request);
+
+        request = new CreateTableRequest
+        {
+            TableName = "Inventories",
             AttributeDefinitions =
             [
                 new AttributeDefinition("Id", ScalarAttributeType.S)

@@ -104,6 +104,7 @@ internal sealed class PropertyDataBuilder
         }
 
         ReportUncopyableSetInitializer(property);
+        ReportDynamoDbNonStringDictionaryKey(property);
 
         var name = renames.TryGetValue(property.Name, out var renamed) ? renamed : property.Name;
         constructorBacked.TryGetValue(property.Name, out var constructorDefault);
@@ -176,6 +177,16 @@ internal sealed class PropertyDataBuilder
         foreach (var name in options.OnlyInclude.RootNames)
             if (!modelPropertyNames.Contains(name))
                 Report(Diagnostics.InvalidOnlyIncludePath, name, _request.ModelSymbol.Name);
+    }
+
+    private void ReportDynamoDbNonStringDictionaryKey(IPropertySymbol property)
+    {
+        if (_request.Repository != RepositoryKind.DynamoDb) return;
+        if (property.Type is not INamedTypeSymbol { IsGenericType: true, Arity: 2 } namedType) return;
+        if (!KnownCollections.IsKnownDictionary(namedType)) return;
+        if (namedType.TypeArguments[0].SpecialType == SpecialType.System_String) return;
+
+        Report(Diagnostics.DynamoDbDictionaryNonStringKey, property.Name, _request.ModelSymbol.Name);
     }
 
     // Initializers are copied verbatim to the DTO. Collection-expression initializers (= [])

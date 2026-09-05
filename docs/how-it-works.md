@@ -74,7 +74,13 @@ For each class that passes the filter, the generator accesses the semantic model
 4b. **Infer type mappings** — `TypeMappingResolver` scans the same property set the DTO is built from — including constructor-backed get-only properties — and automatically adds type mappings for any type whose namespace is in the qualifying set, unless excluded by `[IgnoreTypeMapping]` or already covered by an explicit `[TypeMapping]`. Each inferred mapping also registers the type as an **auto-target** — the transformer synthesises a `TargetClass` for it and returns it in `AutoDtoTargets`. The pipeline emits these companion DTOs as extra source files.
 
 5. **Walk model properties** (`ModelPropertyReader.ReadSettable`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names for `IncludeInherited = true`. Traversal stops at `System.Object`.
-6. **Build `PropertyData` records** — `PropertyDataBuilder` orchestrates, reading each property's rename, initializer, and getter/setter/init/required flags. The DTO-side type comes from `PropertyTypeResolver`, which applies an ordered `ITypeMappingRule` list (direct type, collection element, array element — first match wins) and then layers on nullability, the `ISet<T>` cast `ToModel` needs, and the concrete-collection remap required by DynamoDB. Constructor-backed get-only properties are forced to `IsInitOnly = true`.
+6. **Build `PropertyData` records** — `PropertyDataBuilder` orchestrates, reading each property's rename, initializer, and getter/setter/init/required flags. The DTO-side type comes from `PropertyTypeResolver`, which applies an ordered `ITypeMappingRule` list (direct type, collection element, array element, dictionary — first match wins) and then layers on nullability, the `ISet<T>` cast `ToModel` needs, and the concrete-collection/dictionary remap required by DynamoDB. Constructor-backed get-only properties are forced to `IsInitOnly = true`.
+
+   The four mapping rules, in order:
+   1. `DirectMappingRule` — the type itself is explicitly or inferred-mapped.
+   2. `CollectionMappingRule` — a supported single-type-arg collection whose element type is mapped.
+   3. `ArrayMappingRule` — an array whose element type is mapped.
+   4. `DictionaryMappingRule` — a supported two-type-arg dictionary whose key or value type (or both) is mapped; only fires when at least one argument needs remapping.
 7. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record.
 8. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs.
 
@@ -99,7 +105,7 @@ Takes a `TargetClass` and writes up to three `StringBuilder`-based C# source fil
 
 Everything that varies by backend comes from a `RepositoryProfile`: the `using` lines, the enum property attribute, whether abstract collections need a concrete type, and the repository base class. For DynamoDB, enum properties get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]` (from `Gener8.Converters`). For MongoDB, they get `[BsonRepresentation(BsonType.String)]`.
 
-Only DynamoDB remaps abstract collection interfaces (`IReadOnlyList<T>`, `IEnumerable<T>`, ... to `List<T>`, and `ISet<T>` to `HashSet<T>`), because the AWS SDK instantiates the DTO itself and cannot construct an interface. The MongoDB driver can instantiate abstract collection types, so its DTOs keep the model's declared collection type.
+Only DynamoDB remaps abstract collection/dictionary interfaces (`IReadOnlyList<T>`, `IEnumerable<T>`, ... to `List<T>`; `ISet<T>` to `HashSet<T>`; `IDictionary<K,V>` and `IReadOnlyDictionary<K,V>` to `Dictionary<K,V>`), because the AWS SDK instantiates the DTO itself and cannot construct an interface. The MongoDB driver can instantiate abstract collection types, so its DTOs keep the model's declared collection type. DynamoDB also enforces that dictionary keys must be `string` — a non-string key triggers diagnostic **GEN006**.
 
 **`EmitExtensions`** writes the mapping helpers (`{ClassName}Extensions.g.cs`):
 

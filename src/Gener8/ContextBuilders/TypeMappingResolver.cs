@@ -151,6 +151,15 @@ internal sealed class TypeMappingResolver
             return;
         }
 
+        // Recurse into dictionary key and value types (sub-paths don't propagate into dict arguments).
+        if (type is INamedTypeSymbol { IsGenericType: true, Arity: 2 } dictType
+            && KnownCollections.IsKnownDictionary(dictType))
+        {
+            TryAddInferredMapping(dictType.TypeArguments[0], null);
+            TryAddInferredMapping(dictType.TypeArguments[1], null);
+            return;
+        }
+
         if (type is not INamedTypeSymbol { IsGenericType: false } namedType) return;
         if (namedType.TypeKind != TypeKind.Class) return;
         if (namedType.SpecialType != SpecialType.None) return;  // skip string, object, etc.

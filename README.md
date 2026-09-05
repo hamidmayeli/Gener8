@@ -71,6 +71,7 @@ The `set`/`init` accessor, the `required` modifier, and property initializers ar
 | Make non-nullable properties nullable in the DTO | `ForceNullable = [nameof(Model.Prop)]` |
 | Mapping extension methods | Generated automatically alongside every DTO |
 | Generate a repository scaffold | `Repository = RepositoryType.DynamoDb`, `RepositoryType.MongoDb`, or `RepositoryType.Custom` |
+| Dictionary properties with type-remapped keys/values | Handled automatically; extensions use `ToDictionary(...)` |
 
 See [docs/features.md](docs/features.md) for detailed examples of every feature.
 
