@@ -249,4 +249,27 @@ public class OnlyIncludeTests
         Assert.Contains("public string Email", customerDto);
         Assert.DoesNotContain("Phone", customerDto);
     }
+
+    [Fact]
+    public void OnlyInclude_GEN005_InvalidSubPathOnNestedType()
+    {
+        var diagnostics = GeneratorDriver.RunForDiagnostics("""
+            using Gener8;
+            namespace MyApp.Models
+            {
+                public class Customer { public string FullName { get; set; } = ""; }
+                public class Order { public int Id { get; set; } public Customer Customer { get; set; } = new(); }
+            }
+            namespace MyApp.Dtos
+            {
+                [FromModel(typeof(MyApp.Models.Order), OnlyInclude = ["Id", "Customer.NonExistent"])]
+                public partial class OrderDto { }
+            }
+            """);
+
+        var gen005 = Assert.Single(diagnostics, d => d.Id == "GEN005");
+        Assert.Equal(DiagnosticSeverity.Error, gen005.Severity);
+        Assert.Contains("NonExistent", gen005.GetMessage());
+        Assert.Contains("Customer", gen005.GetMessage());
+    }
 }

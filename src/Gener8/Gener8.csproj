@@ -42,9 +42,7 @@
     direct type references).
   -->
   <ItemGroup>
-    <ProjectReference Include="..\Gener8.Abstractions\Gener8.Abstractions.csproj"
-                      ReferenceOutputAssembly="false"
-                      SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\Gener8.Abstractions\Gener8.Abstractions.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -53,10 +51,7 @@
     <!-- Generator DLL → analyzers/dotnet/cs/ (loaded by the compiler, not deployed at runtime) -->
     <None Include="$(OutputPath)$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     <!-- Abstractions DLL → lib/netstandard2.0/ (compile + runtime reference for consumers) -->
-    <None Include="..\Gener8.Abstractions\bin\$(Configuration)\netstandard2.0\Gener8.Abstractions.dll"
-          Pack="true"
-          PackagePath="lib/netstandard2.0"
-          Visible="false" />
+    <None Include="..\Gener8.Abstractions\bin\$(Configuration)\netstandard2.0\Gener8.Abstractions.dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
   </ItemGroup>
 
 </Project>

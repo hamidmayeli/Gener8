@@ -404,4 +404,76 @@ public class RepositoryTests
         var source = results["ProductDto.g.cs"];
         Assert.Contains($"[DynamoDBProperty(typeof({converterType}<CategoryEnum>))]", source);
     }
+
+    [Fact]
+    public void CustomRepositoryDerivesFromRepositoryBase()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            [FromModel(typeof(Product), Repository = RepositoryType.Custom)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductRepository.g.cs"];
+        Assert.Contains("Gener8.RepositoryBase<", source);
+        Assert.Contains("ProductDto>", source);
+        Assert.Contains("IRepositoryContext context", source);
+        Assert.Contains(": base(context)", source);
+    }
+
+    [Fact]
+    public void MongoDbRepositoryPassesDtoNameAsCollectionName()
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + """
+            [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains(": base(context, \"ProductDto\")", results["ProductRepository.g.cs"]);
+    }
+
+    [Theory]
+    [InlineData("DynamoDb", "using Amazon.DynamoDBv2.DataModel;")]
+    [InlineData("DynamoDb", "using Gener8.Converters;")]
+    [InlineData("MongoDb", "using MongoDB.Bson;")]
+    [InlineData("MongoDb", "using MongoDB.Bson.Serialization.Attributes;")]
+    public void DtoFileIncludesRepositoryUsings(string repositoryType, string expectedUsing)
+    {
+        var results = GeneratorDriver.RunUnchecked(ProductModel + $$"""
+            [FromModel(typeof(Product), Repository = RepositoryType.{{repositoryType}})]
+            public partial class ProductDto { }
+            """);
+
+        Assert.Contains(expectedUsing, results["ProductDto.g.cs"]);
+    }
+
+    [Fact]
+    public void DtoFileHasNoRepositoryUsingsWithoutRepository()
+    {
+        var results = GeneratorDriver.Run(ProductModel + """
+            [FromModel(typeof(Product))]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDto.g.cs"];
+        Assert.DoesNotContain("using Amazon", source);
+        Assert.DoesNotContain("using MongoDB", source);
+    }
+
+    [Fact]
+    public void MongoDb_AbstractCollectionKeptAsDeclared()
+    {
+        // The MongoDB driver can instantiate abstract collection types, so unlike DynamoDB
+        // there is no remap to List<T>.
+        var results = GeneratorDriver.RunUnchecked("""
+            using Gener8;
+            using System.Collections.Generic;
+            public class Product { public IReadOnlyCollection<int> Sizes { get; set; } = []; }
+            [FromModel(typeof(Product), Repository = RepositoryType.MongoDb)]
+            public partial class ProductDto { }
+            """);
+
+        var source = results["ProductDto.g.cs"];
+        Assert.Contains("IReadOnlyCollection<int> Sizes", source);
+        Assert.DoesNotContain("System.Collections.Generic.List<int>", source);
+    }
 }

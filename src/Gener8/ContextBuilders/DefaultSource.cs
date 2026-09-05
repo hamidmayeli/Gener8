@@ -1,7 +1,7 @@
 // Attribute and enum type definitions have moved to Gener8.Abstractions.
 // This file retains only the fully-qualified type name constants used by the generator's
 // Roslyn attribute-matching logic (INamedTypeSymbol.ToDisplayString() comparisons).
-namespace Gener8;
+namespace Gener8.ContextBuilders;
 
 internal static class DefaultSource
 {

@@ -5,6 +5,24 @@
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) (used by tests and samples; the generator itself targets `netstandard2.0`)
 - Any editor with C# support — Visual Studio 2022, VS Code + C# Dev Kit, or Rider
 
+### The Roslyn version constraint
+
+`Microsoft.CodeAnalysis.CSharp` in [Directory.Packages.props](../Directory.Packages.props) is the
+**minimum compiler version Gener8 supports**, currently `4.8.0` (.NET SDK 8.0.100 onwards). It is
+not a dependency to keep current.
+
+A compiler refuses to load an analyzer that references a newer Roslyn than itself, failing with:
+
+```
+error CS9057: Analyzer assembly 'Gener8.dll' cannot be used because it references version
+'X' of the compiler, which is newer than the currently running version 'Y'.
+```
+
+Raising the version raises the minimum SDK for every consumer, so it is deliberately excluded
+from dependabot. Note that CI resolves `dotnet-version: '10.x'` to the newest available SDK, so a
+version that is too new can pass CI while breaking contributors on an older SDK band — which is
+exactly how this last regressed.
+
 ## Repository layout
 
 ```
@@ -25,20 +43,43 @@ Gener8.slnx
 │   ├── Gener8/                         — the Roslyn source generator (netstandard2.0)
 │   │   ├── Gener8.csproj
 │   │   ├── FromModelGenerator.cs       — IIncrementalGenerator implementation
-│   │   ├── SourceProducer.cs           — emits model, extensions, and repository files
 │   │   ├── SyntaxTransformer.cs        — Roslyn pipeline: predicate + ExtractClassTarget
-│   │   ├── PropertyDataBuilder.cs      — builds PropertyData list from a model symbol
-│   │   ├── DefaultSource.cs            — placeholder (all types moved to Abstractions/Extensions)
-│   │   ├── DefaultSource.DynamoDb.cs   — placeholder (moved to Extensions.DynamoDB)
+│   │   ├── SourceProducer.cs           — emits model, extensions, and repository files
+│   │   ├── Diagnostics.cs              — GEN001–GEN005 + GEN999 descriptors
+│   │   ├── BuildDiagnostic.cs          — immutable diagnostic payload used by builders
+│   │   ├── RepositoryProfile.cs        — per-backend profile differences
+│   │   ├── TypeNames.cs                — display-string helpers + DTO naming convention
 │   │   ├── IsExternalInit.cs           — polyfill for init-only setters on netstandard2.0
 │   │   ├── Compatibility/
 │   │   │   └── NotNullWhenAttribute.cs — polyfill for [NotNullWhen] on netstandard2.0
+│   │   ├── ContextBuilders/            — semantic readers/builders used by the transform stage
+│   │   │   ├── AttributeReader.cs
+│   │   │   ├── ConstructorMatcher.cs
+│   │   │   ├── PropertyDataBuilder.cs
+│   │   │   ├── PropertyTypeResolver.cs
+│   │   │   ├── TypeMappingResolver.cs
+│   │   │   ├── ModelPropertyReader.cs
+│   │   │   ├── RepositoryCollectionRemapper.cs
+│   │   │   └── TypeMapping/
+│   │   │       ├── ITypeMappingRule.cs
+│   │   │       ├── DirectMappingRule.cs
+│   │   │       ├── CollectionMappingRule.cs
+│   │   │       └── ArrayMappingRule.cs
 │   │   └── Contexts/                   — immutable records for the incremental pipeline
+│   │       ├── ClassTargetResult.cs
 │   │       ├── TargetClass.cs
 │   │       ├── ModelClass.cs
+│   │       ├── PropertyBuildRequest.cs
 │   │       ├── PropertyData.cs
 │   │       ├── PropertyTypeData.cs
 │   │       ├── FlattenedPropertyData.cs
+│   │       ├── AutoDtoTarget.cs
+│   │       ├── FromModelOptions.cs
+│   │       ├── TypeMappingContext.cs
+│   │       ├── MappedType.cs
+│   │       ├── CollectionTypeMapping.cs
+│   │       ├── ConstructorBackedProperty.cs
+│   │       ├── FlattenParent.cs
 │   │       ├── FlattenPrefixMode.cs
 │   │       └── RepositoryKind.cs
 │   ├── Gener8.Extensions.DynamoDB/     — DynamoDB integration (netstandard2.0, requires AWSSDK.DynamoDBv2)

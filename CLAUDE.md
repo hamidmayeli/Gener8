@@ -22,19 +22,50 @@ src/
 ├── Gener8/                               — Roslyn source generator (netstandard2.0)
 │   ├── Gener8.csproj                     — packs generator in analyzers/ + Abstractions DLL in lib/
 │   ├── FromModelGenerator.cs             — IIncrementalGenerator implementation
-│   ├── SourceProducer.cs                 — Emits partial class, extension methods, concrete repository
 │   ├── SyntaxTransformer.cs              — Roslyn pipeline: predicate + ExtractClassTarget
-│   ├── PropertyDataBuilder.cs            — builds PropertyData list from a model symbol
-│   ├── DefaultSource.cs                  — placeholder (all types moved to Abstractions)
-│   ├── DefaultSource.DynamoDb.cs         — placeholder (moved to Extensions.DynamoDB)
+│   ├── SourceProducer.cs                 — Emits partial class, extension methods, concrete repository
+│   ├── Diagnostics.cs                    — GEN001–GEN005 + GEN999 descriptors
+│   ├── BuildDiagnostic.cs                — immutable diagnostic payload used by builders
+│   ├── RepositoryProfile.cs              — per-backend differences (usings, attributes, base class)
+│   ├── TypeNames.cs                      — display-string helpers + the model→DTO name convention
+│   ├── IsExternalInit.cs                 — polyfill for init-only setters on netstandard2.0
+│   ├── Compatibility/
+│   │   └── NotNullWhenAttribute.cs       — polyfill for [NotNullWhen] on netstandard2.0
+│   ├── ContextBuilders/
+│   │   ├── AttributeReader.cs            — TypedConstant extraction for every attribute argument
+│   │   ├── ConstructorMatcher.cs         — ctor-parameter ↔ property matching (order + defaults)
+│   │   ├── DefaultSource.cs              — fully-qualified attribute name constants
+│   │   ├── EnumTypes.cs                  — enum / enum-collection classification
+│   │   ├── KnownCollections.cs           — supported collection type list
+│   │   ├── ModelPropertyReader.cs        — the single base-type walk over model properties
+│   │   ├── OnlyIncludeFilter.cs          — OnlyInclude whitelist (null-object: None = include all)
+│   │   ├── PropertyBuildResult.cs        — builder output: properties, auto-targets, diagnostics
+│   │   ├── PropertyDataBuilder.cs        — orchestrates one DTO's PropertyData list
+│   │   ├── PropertyTypeResolver.cs       — applies mapping rules, nullability, repository needs
+│   │   ├── RepositoryCollectionRemapper.cs — abstract collection interface → concrete type
+│   │   ├── TypeMappingResolver.cs        — explicit [TypeMapping] + DtoNamespaces inference
+│   │   └── TypeMapping/
+│   │       ├── ITypeMappingRule.cs       — mapping rule abstraction
+│   │       ├── DirectMappingRule.cs      — direct type mapping rule
+│   │       ├── CollectionMappingRule.cs  — collection element mapping rule
+│   │       └── ArrayMappingRule.cs       — array element mapping rule
 │   └── Contexts/                         — immutable records used across the incremental pipeline
-│       ├── TargetClass.cs
+│       ├── AutoDtoTarget.cs
+│       ├── ClassTargetResult.cs
+│       ├── CollectionTypeMapping.cs
+│       ├── ConstructorBackedProperty.cs
+│       ├── FlattenedPropertyData.cs
+│       ├── FlattenParent.cs
+│       ├── FlattenPrefixMode.cs          — internal enum: Parent, None, Gaped
+│       ├── FromModelOptions.cs
+│       ├── MappedType.cs
 │       ├── ModelClass.cs
+│       ├── PropertyBuildRequest.cs
 │       ├── PropertyData.cs
 │       ├── PropertyTypeData.cs
-│       ├── FlattenedPropertyData.cs
-│       ├── FlattenPrefixMode.cs          — internal enum: Parent, None, Gaped
-│       └── RepositoryKind.cs             — internal enum: None, DynamoDb, MongoDb, Custom
+│       ├── RepositoryKind.cs             — internal enum: None, DynamoDb, MongoDb, Custom
+│       ├── TargetClass.cs
+│       └── TypeMappingContext.cs
 ├── Gener8.Extensions.DynamoDB/           — DynamoDB integration (netstandard2.0, requires AWSSDK.DynamoDBv2)
 │   ├── Gener8.Extensions.DynamoDB.csproj
 │   ├── Converters/
@@ -59,7 +90,7 @@ src/
 3. Generator copies public instance properties and emits up to three files per DTO:
    - `{Namespace}.{ClassName}.g.cs` — the partial class with copied properties
    - `{Namespace}.{ClassName}Extensions.g.cs` — `ToModel` / `ToDto` extension methods
-   - `{Namespace}.{ClassName}Repository.g.cs` — concrete repository (when `Repository` is set)
+   - `{Namespace}.{ModelName}Repository.g.cs` — concrete repository (when `Repository` is set)
 
 ## NuGet packages
 
@@ -94,6 +125,30 @@ internal partial class TheDto {}
 // }
 ```
 
+## Generator internals
+
+`SyntaxTransformer` calls `PropertyDataBuilder.Build(request)` once per DTO and gets back a
+`PropertyBuildResult`. Diagnostics are returned as data (`BuildDiagnostic`), not accumulated on
+the builder, so the transformer reports them in one loop and child auto-DTO diagnostics surface
+alongside the parent's.
+
+Conventions worth knowing before editing:
+
+- **Attribute arguments** are read only through `AttributeReader`. Do not hand-roll a
+  `NamedArguments` loop.
+- **Model properties** are enumerated only through `ModelPropertyReader`. `ReadSettable` is the
+  set a DTO can populate; `ReadNames` is every public instance property.
+- **Constructor matching** lives only in `ConstructorMatcher`. Both the property builder (for
+  parameter defaults) and `ModelClass.PrimaryConstructorParams` (for argument order) project
+  from it, so they cannot disagree.
+- **Type display strings** are manipulated only through `TypeNames`. The trailing `?` and the
+  model→DTO method-name convention (`Product` + `ProductView` → `ToView`) are defined there.
+- **Type mapping** is keyed on the non-nullable display string; `TypeMappingResolver` normalises
+  every lookup. Adding a new mapping shape means adding an `ITypeMappingRule` to the ordered
+  list in `PropertyTypeResolver`, not another guard clause.
+- **Repository backends** differ only inside `RepositoryProfile`. Adding one means adding a
+  profile subclass and a line in `RepositoryProfile.For`.
+
 ## Key details
 
 - Attribute full name: `Gener8.FromModelAttribute` (defined in `Gener8.Abstractions.dll`)
@@ -105,7 +160,7 @@ internal partial class TheDto {}
 - `[IgnoreTypeMapping(typeof(T))]` — suppresses auto type mapping for `T` when `DtoNamespaces` is active
 - `[RenameProperty("OldName", "NewName")]` — renames in DTO; extensions use correct name on each side
 - `Flatten = [...]` — inlines nested properties; `ToModel` reconstructs the nested parent (null-safe for nullable parents)
-- DynamoDB/MongoDB abstract collection interfaces are remapped to `List<T>` in the DTO; `ToDto` uses collection spread
+- DynamoDB only: abstract collection interfaces are remapped to `List<T>` (`ISet<T>` to `HashSet<T>`) in the DTO because the AWS SDK instantiates the DTO itself; `ToDto` then uses collection spread. MongoDB needs no remapping — its driver can instantiate abstract collection types
 - DynamoDB: `enum` properties get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]` (from `Gener8.Converters` in `Gener8.Extensions.DynamoDB`)
 - MongoDB: `enum` properties get `[BsonRepresentation(BsonType.String)]`
 - `Repository = RepositoryType.DynamoDb|MongoDb|Custom` — generates a concrete `{Model.Name}Repository` class; base classes come from `Gener8.Extensions.DynamoDB`, `Gener8.Extensions.MongoDB`, or `Gener8.Abstractions` respectively
@@ -117,7 +172,7 @@ internal partial class TheDto {}
 
 See [docs/contributing.md](docs/contributing.md) for build commands, NuGet packaging, and CI/CD details.
 # userEmail
-The user's email address is hamid.mayeli@justeattakeaway.com. Use it only to identify the user, such as for authorship, attribution, or filtering their own work. Never send it to an unrelated service, such as in a request header, URL, or payload, unless the user explicitly asks.
+The user's email address is hamid.mayeli@yahoo.com. Use it only to identify the user, such as for authorship, attribution, or filtering their own work. Never send it to an unrelated service, such as in a request header, URL, or payload, unless the user explicitly asks.
 # currentDate
 Today's date is 2026-08-31.
 

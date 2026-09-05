@@ -1,9 +1,4 @@
-using CustomDb.Integration.Tests.Setup;
 using Microsoft.Data.SqlClient;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace CustomDb.Integration.Tests.Setup.Models;
 

@@ -1,14 +1,12 @@
+using Gener8.ContextBuilders;
 using Gener8.Contexts;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Gener8;
-
-internal sealed record ClassTargetResult(TargetClass? Target, IReadOnlyList<Diagnostic>? Errors = null);
 
 internal static class SyntaxTransformer
 {
@@ -26,11 +24,13 @@ internal static class SyntaxTransformer
 
         if (!TryGetFromModelAttributeData(classSymbol, out AttributeData? attr)) return null;
 
+        var location = context.Node.GetLocation();
+
         if (!TryGetModelSymbol(attr, out INamedTypeSymbol? modelSymbol))
         {
             var diagnostic = Diagnostic.Create(
                 Diagnostics.UnresolvedModelType,
-                context.Node.GetLocation(),
+                location,
                 classSymbol.Name);
             return new ClassTargetResult(null, [diagnostic]);
         }
@@ -50,70 +50,36 @@ internal static class SyntaxTransformer
             _ => "internal"
         };
 
-        var repositoryKind = GetRepositoryKind(attr);
+        var repositoryKind = AttributeReader.GetEnum(attr, "Repository", RepositoryKind.None);
         var modelFullName = modelSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var qualifyingNamespaces = GetQualifyingNamespaces(attr, modelSymbol);
         var ignoredTypeMappings = GetIgnoredTypeMappings(classSymbol);
-        var dtoSuffix = GetDtoSuffix(classSymbol.Name, modelSymbol.Name);
+        var dtoSuffix = TypeNames.DtoSuffix(modelSymbol.Name, classSymbol.Name);
 
-        var builder = new PropertyDataBuilder(classSymbol, attr, modelSymbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings, dtoSuffix);
-        var properties = builder.GetProperties();
+        var built = PropertyDataBuilder.Build(
+            PropertyBuildRequest.ForDeclaredDto(
+                classSymbol, attr, modelSymbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings, dtoSuffix));
 
-        if (builder.HasOnlyIncludeIgnoreConflict)
-        {
-            return new ClassTargetResult(null, [Diagnostic.Create(
-                Diagnostics.OnlyIncludeIgnoreConflict,
-                context.Node.GetLocation(),
-                classSymbol.Name)]);
-        }
+        var errors = new List<Diagnostic>();
+        foreach (var diagnostic in built.Diagnostics)
+            errors.Add(diagnostic.ToDiagnostic(location));
 
-        if (builder.InvalidOnlyIncludePaths.Count > 0)
-        {
-            var errors = new List<Diagnostic>(builder.InvalidOnlyIncludePaths.Count);
-            foreach (var path in builder.InvalidOnlyIncludePaths)
-                errors.Add(Diagnostic.Create(
-                    Diagnostics.InvalidOnlyIncludePath,
-                    context.Node.GetLocation(),
-                    path,
-                    modelSymbol.Name));
-            return new ClassTargetResult(null, errors);
-        }
+        var autoTargets = BuildAutoTargets(
+            built.AutoTargets, ns, accessibility, qualifyingNamespaces, repositoryKind,
+            ignoredTypeMappings, dtoSuffix, location, errors);
 
-        if (builder.AlreadyNullablePropertyNames.Count > 0)
-        {
-            var errors = new List<Diagnostic>(builder.AlreadyNullablePropertyNames.Count);
-            foreach (var propName in builder.AlreadyNullablePropertyNames)
-                errors.Add(Diagnostic.Create(
-                    Diagnostics.AlreadyNullableProperty,
-                    context.Node.GetLocation(),
-                    propName,
-                    modelSymbol.Name));
-            return new ClassTargetResult(null, errors);
-        }
-
-        if (builder.ISetWithInitializerPropertyNames.Count > 0)
-        {
-            var errors = new List<Diagnostic>(builder.ISetWithInitializerPropertyNames.Count);
-            foreach (var propName in builder.ISetWithInitializerPropertyNames)
-                errors.Add(Diagnostic.Create(
-                    Diagnostics.ISetPropertyWithInitializer,
-                    context.Node.GetLocation(),
-                    propName,
-                    modelSymbol.Name));
-            return new ClassTargetResult(null, errors);
-        }
-
-        var autoTargets = BuildAutoTargets(builder.AutoTargetSymbols, ns, accessibility, qualifyingNamespaces, repositoryKind, ignoredTypeMappings, dtoSuffix);
+        // Any error means the DTO cannot be emitted safely; report and drop the target.
+        if (errors.Count > 0) return new ClassTargetResult(null, errors);
 
         var target = new TargetClass(
             classSymbol.Name,
             ns,
             accessibility,
-            properties,
-            new(modelFullName, modelSymbol.Name, GetPrimaryConstructorParams(modelSymbol)),
+            built.Properties,
+            new(modelFullName, modelSymbol.Name, ConstructorMatcher.MatchToNames(modelSymbol)),
             repositoryKind,
             autoTargets,
-            ComputeToDtoMethodName(classSymbol.Name, modelSymbol.Name));
+            TypeNames.DtoMethodName(modelSymbol.Name, classSymbol.Name));
 
         return new ClassTargetResult(target, null);
     }
@@ -130,14 +96,8 @@ internal static class SyntaxTransformer
             : "";
         namespaces.Add(modelNs);
 
-        // DtoNamespaces from attribute
-        foreach (var namedArg in attr.NamedArguments)
-        {
-            if (namedArg.Key != "DtoNamespaces") continue;
-            foreach (var item in namedArg.Value.Values)
-                if (item.Value is string extraNs)
-                    namespaces.Add(extraNs);
-        }
+        foreach (var extraNs in AttributeReader.GetStringList(attr, "DtoNamespaces"))
+            namespaces.Add(extraNs);
 
         return namespaces;
     }
@@ -145,32 +105,38 @@ internal static class SyntaxTransformer
     // Recursively synthesises TargetClass records for all transitive auto-DTO types.
     // Returns a flat list (depth-first) safe to iterate and de-duplicate in the pipeline.
     private static IReadOnlyCollection<TargetClass> BuildAutoTargets(
-        IReadOnlyCollection<(INamedTypeSymbol Symbol, IReadOnlyCollection<string>? OnlyIncludePaths)> symbols,
-        string? targetNs,
-        string accessibility,
-        IReadOnlyCollection<string> qualifyingNamespaces,
-        RepositoryKind repositoryKind,
-        IReadOnlyCollection<string> ignoredTypeMappings,
-        string dtoSuffix)
-    {
-        var result = new List<TargetClass>();
-        var visited = new HashSet<string>();
-        CollectAutoTargets(symbols, targetNs, accessibility, qualifyingNamespaces, repositoryKind, ignoredTypeMappings, dtoSuffix, visited, result);
-        return result;
-    }
-
-    private static void CollectAutoTargets(
-        IReadOnlyCollection<(INamedTypeSymbol Symbol, IReadOnlyCollection<string>? OnlyIncludePaths)> symbols,
+        IReadOnlyCollection<AutoDtoTarget> autoTargets,
         string? targetNs,
         string accessibility,
         IReadOnlyCollection<string> qualifyingNamespaces,
         RepositoryKind repositoryKind,
         IReadOnlyCollection<string> ignoredTypeMappings,
         string dtoSuffix,
+        Location? location,
+        List<Diagnostic> errors)
+    {
+        var result = new List<TargetClass>();
+        var visited = new HashSet<string>();
+        CollectAutoTargets(
+            autoTargets, targetNs, accessibility, qualifyingNamespaces, repositoryKind,
+            ignoredTypeMappings, dtoSuffix, location, errors, visited, result);
+        return result;
+    }
+
+    private static void CollectAutoTargets(
+        IReadOnlyCollection<AutoDtoTarget> autoTargets,
+        string? targetNs,
+        string accessibility,
+        IReadOnlyCollection<string> qualifyingNamespaces,
+        RepositoryKind repositoryKind,
+        IReadOnlyCollection<string> ignoredTypeMappings,
+        string dtoSuffix,
+        Location? location,
+        List<Diagnostic> errors,
         HashSet<string> visited,
         List<TargetClass> result)
     {
-        foreach (var (symbol, symbolOnlyIncludePaths) in symbols)
+        foreach (var (symbol, symbolOnlyIncludePaths) in autoTargets)
         {
             var key = symbol.ToDisplayString();
             if (!visited.Add(key)) continue;
@@ -178,127 +144,50 @@ internal static class SyntaxTransformer
             var dtoName = symbol.Name + dtoSuffix;
             var modelFullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-            // No classSymbol/attribute for synthesised DTOs — all options default to empty/false.
-            // Propagate repositoryKind, ignoredTypeMappings, dtoSuffix, and OnlyIncludePaths so
-            // child DTOs inherit the same suffix and property filter from their parent.
-            var builder = new PropertyDataBuilder(null, null, symbol, repositoryKind, qualifyingNamespaces, ignoredTypeMappings, dtoSuffix, symbolOnlyIncludePaths);
-            var props = builder.GetProperties();
+            // A synthesised DTO has no class symbol or attribute, so all options default.
+            // repositoryKind, ignoredTypeMappings, dtoSuffix and the OnlyInclude sub-paths are
+            // propagated so child DTOs inherit the same suffix and property filter as the parent.
+            var built = PropertyDataBuilder.Build(
+                PropertyBuildRequest.ForAutoDto(
+                    symbol, dtoName, repositoryKind, qualifyingNamespaces,
+                    ignoredTypeMappings, dtoSuffix, symbolOnlyIncludePaths));
+
+            // Diagnostics raised while building a child DTO (e.g. an OnlyInclude sub-path that
+            // does not exist on the nested type) belong to the declaration that triggered it.
+            foreach (var diagnostic in built.Diagnostics)
+                errors.Add(diagnostic.ToDiagnostic(location));
 
             // Depth-first: add nested auto-targets before this one so dependencies come first.
-            CollectAutoTargets(builder.AutoTargetSymbols, targetNs, accessibility, qualifyingNamespaces, repositoryKind, ignoredTypeMappings, dtoSuffix, visited, result);
+            CollectAutoTargets(
+                built.AutoTargets, targetNs, accessibility, qualifyingNamespaces, repositoryKind,
+                ignoredTypeMappings, dtoSuffix, location, errors, visited, result);
 
             result.Add(new TargetClass(
                 dtoName,
                 targetNs,
                 accessibility,
-                props,
-                new ModelClass(modelFullName, symbol.Name, GetPrimaryConstructorParams(symbol)),
+                built.Properties,
+                new ModelClass(modelFullName, symbol.Name, ConstructorMatcher.MatchToNames(symbol)),
                 repositoryKind,
                 [],
-                ComputeToDtoMethodName(dtoName, symbol.Name)));
+                TypeNames.DtoMethodName(symbol.Name, dtoName)));
         }
-    }
-
-    private static RepositoryKind GetRepositoryKind(AttributeData attr)
-    {
-        foreach (var namedArg in attr.NamedArguments)
-            if (namedArg.Key == "Repository" && namedArg.Value.Value is int val)
-                return (RepositoryKind)val;
-
-        return RepositoryKind.None;
-    }
-
-    // When the DTO class name starts with the model name as a prefix, the suffix drives the
-    // mapping method name: "Product" + "View" → "ToView". Falls back to "ToDto" otherwise.
-    private static string ComputeToDtoMethodName(string dtoClassName, string modelName)
-    {
-        if (dtoClassName.Length > modelName.Length
-            && dtoClassName.StartsWith(modelName, System.StringComparison.Ordinal))
-            return "To" + dtoClassName.Substring(modelName.Length);
-        return "ToDto";
-    }
-
-    // Returns the raw suffix to append to auto-generated child DTO names.
-    // "OrderView"/"Order" → "View"; "OrderDto"/"Order" → "Dto"; no-match → "Dto".
-    private static string GetDtoSuffix(string dtoClassName, string modelName)
-    {
-        var method = ComputeToDtoMethodName(dtoClassName, modelName);
-        return method.Substring(2);  // strip "To": "ToView" → "View", "ToDto" → "Dto"
-    }
-
-    // Returns ordered property names (in constructor parameter order) when the model type has a
-    // non-implicit constructor whose parameters all resolve to public properties. Supports both
-    // records (PascalCase params) and regular classes (camelCase params capitalized to match props).
-    // Returns default when object-initializer style should be used instead.
-    private static ImmutableArray<string> GetPrimaryConstructorParams(INamedTypeSymbol modelSymbol)
-    {
-        var propNames = new HashSet<string>();
-        foreach (var member in modelSymbol.GetMembers())
-            if (member is IPropertySymbol { DeclaredAccessibility: Accessibility.Public, IsStatic: false } p)
-                propNames.Add(p.Name);
-
-        if (propNames.Count == 0) return default;
-
-        foreach (var ctor in modelSymbol.InstanceConstructors)
-        {
-            if (ctor.IsImplicitlyDeclared) continue;
-            if (ctor.Parameters.Length == 0) continue;
-
-            var allMatch = true;
-            var mappedNames = new List<string>(ctor.Parameters.Length);
-            foreach (var param in ctor.Parameters)
-            {
-                // PascalCase exact match (records), then capitalize-first fallback (regular classes)
-                if (propNames.Contains(param.Name))
-                {
-                    mappedNames.Add(param.Name);
-                }
-                else
-                {
-                    var cap = param.Name.Length > 0
-                        ? char.ToUpper(param.Name[0]) + param.Name.Substring(1)
-                        : param.Name;
-                    if (propNames.Contains(cap))
-                        mappedNames.Add(cap);
-                    else
-                    {
-                        allMatch = false;
-                        break;
-                    }
-                }
-            }
-
-            if (!allMatch) continue;
-            return [.. mappedNames];
-        }
-
-        return default;
     }
 
     private static IReadOnlyCollection<string> GetIgnoredTypeMappings(INamedTypeSymbol classSymbol)
     {
         var result = new HashSet<string>();
-        foreach (var a in classSymbol.GetAttributes())
-        {
-            if (a.AttributeClass?.ToDisplayString() != DefaultSource.IgnoreTypeMappingAttribute.Name) continue;
-            if (a.ConstructorArguments.Length < 1) continue;
-            if (a.ConstructorArguments[0].Value is INamedTypeSymbol ignoredType)
-                result.Add(ignoredType.ToDisplayString());
-        }
+
+        foreach (var ignoredType in AttributeReader.GetSingleTypeArguments(
+            classSymbol, DefaultSource.IgnoreTypeMappingAttribute.Name))
+            result.Add(ignoredType.ToDisplayString());
+
         return result;
     }
 
     private static bool TryGetFromModelAttributeData(INamedTypeSymbol classSymbol, [NotNullWhen(true)] out AttributeData? attr)
     {
-        attr = null;
-        foreach (var a in classSymbol.GetAttributes())
-        {
-            if (a.AttributeClass?.ToDisplayString() == DefaultSource.FromModelAttribute.Name)
-            {
-                attr = a;
-                break;
-            }
-        }
+        attr = AttributeReader.FindAttribute(classSymbol, DefaultSource.FromModelAttribute.Name);
 
         return attr is not null && attr.ConstructorArguments.Length > 0;
     }

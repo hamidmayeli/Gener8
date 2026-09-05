@@ -69,12 +69,12 @@ For each class that passes the filter, the generator accesses the semantic model
 
 1. **Resolve the DTO class symbol** — obtains the `INamedTypeSymbol` for the partial class.
 2. **Find `[FromModel]`** — locates the attribute (resolved from `Gener8.Abstractions.dll`) and reads the `typeof()` argument to get the model type symbol.
-3. **Extract configuration** — reads `Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited`, `DtoNamespaces`, `ForceNullable` from the attribute; reads `[TypeMapping]`, `[RenameProperty]`, and `[IgnoreTypeMapping]` attributes from the class.
-4. **Detect constructor params** — `PropertyDataBuilder` inspects the model's non-implicit constructors. If a constructor is found whose parameters all resolve to public properties (by exact name or camelCase→PascalCase), those property names are recorded as constructor-backed. This drives two downstream effects: the properties are included even if get-only on the model, and `ToModel` uses constructor-style initialization.
-4b. **Infer type mappings** — when `DtoNamespaces` is set, `PropertyDataBuilder` scans model properties and automatically adds type mappings for any type whose namespace is in the qualifying set, unless excluded by `[IgnoreTypeMapping]` or already covered by an explicit `[TypeMapping]`. Each inferred mapping also registers the type as an **auto-target** — the transformer synthesises a `TargetClass` for it and returns it in `AutoDtoTargets`. The pipeline emits these companion DTOs as extra source files.
+3. **Extract configuration** — `AttributeReader` reads every attribute argument. The `[FromModel]` named arguments (`Ignore`, `Flatten`, `FlattenPrefix`, `IncludeInherited`, `ForceNullable`, `OnlyInclude`) become a `FromModelOptions` record; `DtoNamespaces`, `[TypeMapping]`, `[RenameProperty]` and `[IgnoreTypeMapping]` feed the `TypeMappingResolver`.
+4. **Detect constructor params** — `ConstructorMatcher` inspects the model's non-implicit constructors. If a constructor is found whose parameters all resolve to public properties (by exact name or camelCase→PascalCase), those property names are recorded as constructor-backed. This drives two downstream effects: the properties are included even if get-only on the model, and `ToModel` uses constructor-style initialization. Both the property builder (for parameter default values) and `ModelClass.PrimaryConstructorParams` (for argument order) project from this single result, so they cannot disagree.
+4b. **Infer type mappings** — `TypeMappingResolver` scans the same property set the DTO is built from — including constructor-backed get-only properties — and automatically adds type mappings for any type whose namespace is in the qualifying set, unless excluded by `[IgnoreTypeMapping]` or already covered by an explicit `[TypeMapping]`. Each inferred mapping also registers the type as an **auto-target** — the transformer synthesises a `TargetClass` for it and returns it in `AutoDtoTargets`. The pipeline emits these companion DTOs as extra source files.
 
-5. **Walk model properties** (`GetModelProperties`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names for `IncludeInherited = true`. Traversal stops at `System.Object`.
-6. **Build `PropertyData` records** — delegates to `PropertyDataBuilder`, which resolves the type display string, applies any type mapping (including abstract-collection-to-`List<T>` remapping for DynamoDB), applies any rename, and reads getter/setter/init/required/initializer flags. Constructor-backed get-only properties are forced to `IsInitOnly = true`.
+5. **Walk model properties** (`ModelPropertyReader.ReadSettable`) — iterates public non-static instance properties, skipping get-only ones unless they are constructor-backed. A `HashSet<string>` tracks already-seen names for `IncludeInherited = true`. Traversal stops at `System.Object`.
+6. **Build `PropertyData` records** — `PropertyDataBuilder` orchestrates, reading each property's rename, initializer, and getter/setter/init/required flags. The DTO-side type comes from `PropertyTypeResolver`, which applies an ordered `ITypeMappingRule` list (direct type, collection element, array element — first match wins) and then layers on nullability, the `ISet<T>` cast `ToModel` needs, and the concrete-collection remap required by DynamoDB. Constructor-backed get-only properties are forced to `IsInitOnly = true`.
 7. **Handle `Flatten`** — for each property in the flatten list, recursively walks the nested type's properties (one level only), applies prefix logic and type mappings, and emits each as a top-level `PropertyData` with a `FlattenedPropertyData` sub-record.
 8. **Returns a `TargetClass` record** — an immutable snapshot of everything the `Emit` stage needs.
 
@@ -97,7 +97,9 @@ Takes a `TargetClass` and writes up to three `StringBuilder`-based C# source fil
 [}]
 ```
 
-For DynamoDB repositories, enum properties get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]` (from `Gener8.Converters`). For MongoDB, enum properties get `[BsonRepresentation(BsonType.String)]`.
+Everything that varies by backend comes from a `RepositoryProfile`: the `using` lines, the enum property attribute, whether abstract collections need a concrete type, and the repository base class. For DynamoDB, enum properties get `[DynamoDBProperty(typeof(EnumToStringConverter<T>))]` (from `Gener8.Converters`). For MongoDB, they get `[BsonRepresentation(BsonType.String)]`.
+
+Only DynamoDB remaps abstract collection interfaces (`IReadOnlyList<T>`, `IEnumerable<T>`, ... to `List<T>`, and `ISet<T>` to `HashSet<T>`), because the AWS SDK instantiates the DTO itself and cannot construct an interface. The MongoDB driver can instantiate abstract collection types, so its DTOs keep the model's declared collection type.
 
 **`EmitExtensions`** writes the mapping helpers (`{ClassName}Extensions.g.cs`):
 
@@ -119,7 +121,7 @@ using System.Linq;
 [}]
 ```
 
-**`EmitRepository`** (only when `target.Repository != RepositoryKind.None`) writes a concrete repository class (`{ClassName}Repository.g.cs`). The generated class inherits from `Gener8.DynamoDbRepository<TModel, TDto>`, `Gener8.MongoDbRepository<TModel, TDto>`, or `Gener8.RepositoryBase<TModel, TDto>` — these types now come from the extension packages or `Gener8.Abstractions`, not injected source.
+**`EmitRepository`** (only when `target.Repository != RepositoryKind.None`) writes a concrete repository class (`{ModelName}Repository.g.cs`). The generated class inherits from `Gener8.DynamoDbRepository<TModel, TDto>`, `Gener8.MongoDbRepository<TModel, TDto>`, or `Gener8.RepositoryBase<TModel, TDto>` — these types come from the extension packages or `Gener8.Abstractions`, not injected source.
 
 ---
 

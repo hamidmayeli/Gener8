@@ -331,4 +331,88 @@ public class AutoDtoTests
         var orderDtoSource = results["OrderDto.g.cs"];
         Assert.Contains("MyCustomerDto", orderDtoSource);
     }
+
+    // -----------------------------------------------------------------------
+    // Constructor-backed get-only properties participate in type inference
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void GeneratesDtoForConstructorBackedGetOnlyProperty()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            namespace MyApp.Models
+            {
+                public class Customer { public string Name { get; set; } = ""; }
+                public class Order
+                {
+                    public Order(Customer customer) { Customer = customer; }
+                    public Customer Customer { get; }
+                }
+            }
+            namespace MyApp.Dtos
+            {
+                [FromModel(typeof(MyApp.Models.Order))]
+                public partial class OrderDto { }
+            }
+            """);
+
+        Assert.Contains(results.Keys, k => k.EndsWith("CustomerDto.g.cs"));
+
+        var orderDto = results["MyApp.Dtos.OrderDto.g.cs"];
+        Assert.Contains("CustomerDto Customer", orderDto);
+        Assert.DoesNotContain("MyApp.Models.Customer Customer", orderDto);
+    }
+
+    [Fact]
+    public void ConstructorBackedGetOnlyPropertyMapsThroughDto()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            namespace MyApp.Models
+            {
+                public class Customer { public string Name { get; set; } = ""; }
+                public class Order
+                {
+                    public Order(Customer customer) { Customer = customer; }
+                    public Customer Customer { get; }
+                }
+            }
+            namespace MyApp.Dtos
+            {
+                [FromModel(typeof(MyApp.Models.Order))]
+                public partial class OrderDto { }
+            }
+            """);
+
+        var ext = results["MyApp.Dtos.OrderDtoExtensions.g.cs"];
+        Assert.Contains("dto.Customer.ToModel()", ext);
+        Assert.Contains("model.Customer.ToDto()", ext);
+    }
+
+    [Fact]
+    public void GeneratesDtoForConstructorBackedCollectionProperty()
+    {
+        var results = GeneratorDriver.Run("""
+            using Gener8;
+            using System.Collections.Generic;
+            namespace MyApp.Models
+            {
+                public class Tag { public string Label { get; set; } = ""; }
+                public class Post
+                {
+                    public Post(List<Tag> tags) { Tags = tags; }
+                    public List<Tag> Tags { get; }
+                }
+            }
+            namespace MyApp.Dtos
+            {
+                [FromModel(typeof(MyApp.Models.Post))]
+                public partial class PostDto { }
+            }
+            """);
+
+        Assert.Contains(results.Keys, k => k.EndsWith("TagDto.g.cs"));
+        Assert.Contains("List<TagDto> Tags", results["MyApp.Dtos.PostDto.g.cs"]);
+    }
 }

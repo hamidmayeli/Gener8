@@ -147,10 +147,10 @@ Set `Repository` to generate a concrete repository class that inherits from the 
 [FromModel(typeof(Product), Repository = RepositoryType.DynamoDb)]
 internal partial class ProductDto { }
 
-// Generates ProductDtoRepository.g.cs:
-// internal partial class ProductDtoRepository : Gener8.DynamoDbRepository<Product, ProductDto>
+// Generates ProductRepository.g.cs:
+// internal partial class ProductRepository : Gener8.DynamoDbRepository<Product, ProductDto>
 // {
-//     public ProductDtoRepository(IDynamoDbRepositoryContext context) : base(context) {}
+//     public ProductRepository(IDynamoDbRepositoryContext context) : base(context) {}
 //     protected override Product    ToModel(ProductDto dto)   => dto.ToModel();
 //     protected override ProductDto ToDto  (Product    model) => model.ToDto();
 // }
@@ -160,7 +160,7 @@ Use `RepositoryType.MongoDb` for a MongoDB variant — it receives an `IMongoDbR
 
 Use `RepositoryType.Custom` to get a `partial` scaffold backed by `Gener8.RepositoryBase<TModel, TDto>`. The constructor takes an `IRepositoryContext` (empty marker interface — wrap your own DB context). No CRUD methods are pre-generated; add them in a second partial class file. No extra NuGet package required.
 
-`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. All abstract bases are emitted only when at least one DTO requests them, so no SDK-type references leak into projects that do not use repositories.
+`DynamoDbRepository<TModel, TDto>` implements `ICompositeKeyRepository<TModel>` (single- and composite-key CRUD). `MongoDbRepository<TModel, TDto>` implements `IRepository<TModel>`. These abstract bases come from the extension packages rather than generated source.
 
 The `AWSSDK.DynamoDBv2` or `MongoDB.Driver` package must be referenced in the consuming project for DynamoDb/MongoDb respectively. Also add `Gener8.Extensions.DynamoDB` or `Gener8.Extensions.MongoDB` which provides the abstract base classes (`DynamoDbRepository<TModel,TDto>`, `MongoDbRepository<TModel,TDto>`) and converters.
 

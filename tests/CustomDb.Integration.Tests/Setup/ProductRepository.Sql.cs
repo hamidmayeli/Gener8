@@ -4,15 +4,15 @@ namespace CustomDb.Integration.Tests.Setup.Models;
 
 public partial class ProductRepository
 {
-    protected string CreateWhereClauseForId() => "WHERE Id = @Id";
+    protected static string CreateWhereClauseForId() => "WHERE Id = @Id";
 
-    protected string GetDeleteQuery() => "DELETE FROM Products";
+    protected static string GetDeleteQuery() => "DELETE FROM Products";
 
-    protected object GetIdFromEntity(Product entity) => entity.Id;
+    protected static object GetIdFromEntity(Product entity) => entity.Id;
 
-    protected string GetSelectQuery() => "SELECT Id, Name, Description, CategoryName, CategoryDescription, Sizes FROM Products";
+    protected static string GetSelectQuery() => "SELECT Id, Name, Description, CategoryName, CategoryDescription, Sizes FROM Products";
 
-    protected string GetUpsertQuery()
+    protected static string GetUpsertQuery()
         => """
         MERGE INTO Products AS target
         USING (SELECT @Id AS Id, @Name AS Name, @Description AS Description, @CategoryName AS CategoryName, @CategoryDescription AS CategoryDescription, @Sizes AS Sizes) AS source
@@ -24,7 +24,7 @@ public partial class ProductRepository
             VALUES (source.Id, source.Name, source.Description, source.CategoryName, source.CategoryDescription, source.Sizes);
         """;
 
-    protected ProductDto ReadDto(SqlDataReader reader)
+    protected static ProductDto ReadDto(SqlDataReader reader)
         => new()
         {
             Id = reader.GetGuid(reader.GetOrdinal("Id")),
@@ -35,7 +35,7 @@ public partial class ProductRepository
             Sizes = [.. reader.GetString(reader.GetOrdinal("Sizes")).Split(',').Select(int.Parse)]
         };
 
-    protected void AddAllParameters(Product entity, SqlCommand command)
+    protected static void AddAllParameters(Product entity, SqlCommand command)
     {
         command.Parameters.AddWithValue("@Id", entity.Id);
         command.Parameters.AddWithValue("@Name", entity.Name);

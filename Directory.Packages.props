@@ -6,7 +6,15 @@
     <PackageVersion Include="AWSSDK.DynamoDBv2" Version="4.0.103.5" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <!--
+      Microsoft.CodeAnalysis.CSharp is the MINIMUM compiler version Gener8 supports, not the
+      latest available. The compiler refuses to load an analyzer that references a newer Roslyn
+      than itself (CS9057), so this must stay at or below the Roslyn shipped in the oldest SDK
+      consumers build with. 4.8.0 ships in .NET SDK 8.0.100, so .NET 8 LTS onwards can load the
+      generator. Raising this raises the minimum SDK for every consumer — do not let it be
+      auto-bumped (see the dependabot ignore in .github/dependabot.yml).
+    -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.2" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />

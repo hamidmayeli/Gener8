@@ -10,6 +10,11 @@ updates:
       nuget-dependencies:
         patterns:
           - "*"
+    ignore:
+      # Microsoft.CodeAnalysis.CSharp is the minimum compiler version Gener8 supports, not a
+      # dependency to keep current. Bumping it past the Roslyn in a consumer's SDK makes the
+      # compiler refuse to load the generator (CS9057). Raise it deliberately, never automatically.
+      - dependency-name: "Microsoft.CodeAnalysis.CSharp"
 
   - package-ecosystem: "github-actions"
     directory: "/"
