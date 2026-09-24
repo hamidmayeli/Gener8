@@ -24,7 +24,7 @@ src/
 │   ├── FromModelGenerator.cs             — IIncrementalGenerator implementation
 │   ├── SyntaxTransformer.cs              — Roslyn pipeline: predicate + ExtractClassTarget
 │   ├── SourceProducer.cs                 — Emits partial class, extension methods, concrete repository
-│   ├── Diagnostics.cs                    — GEN001–GEN006 + GEN999 descriptors
+│   ├── Diagnostics.cs                    — GEN001–GEN007 + GEN999 descriptors
 │   ├── BuildDiagnostic.cs                — immutable diagnostic payload used by builders
 │   ├── RepositoryProfile.cs              — per-backend differences (usings, attributes, base class)
 │   ├── TypeNames.cs                      — display-string helpers + the model→DTO name convention

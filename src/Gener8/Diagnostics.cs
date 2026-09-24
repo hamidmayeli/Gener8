@@ -52,6 +52,14 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    public static readonly DiagnosticDescriptor InitializerUnavailable = new(
+        id: "GEN007",
+        title: "Property initializer unavailable",
+        messageFormat: "Property '{0}' on model '{1}' is from a compiled assembly; its initializer cannot be read. Emitted 'required' on '{2}' to prevent CS8618. Declare the property manually in the partial DTO class to use a specific default value instead.",
+        category: "Gener8",
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
+
     public static readonly DiagnosticDescriptor UnexpectedError = new(
         id: "GEN999",
         title: "Unexpected generator error",

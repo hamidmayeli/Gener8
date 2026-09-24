@@ -77,6 +77,113 @@ internal static class GeneratorDriver
             .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
     }
 
+    /// <summary>
+    /// Compiles <paramref name="modelSource"/> into a metadata reference, then runs the generator
+    /// against <paramref name="dtoSource"/> (with nullable enabled) that references it.
+    /// This simulates models defined in a separate project/assembly.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> RunWithExternalModel(
+        string modelSource, string dtoSource)
+    {
+        var modelCompilation = CSharpCompilation.Create(
+            "ModelAssembly",
+            [CSharpSyntaxTree.ParseText(modelSource)],
+            [
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
+            ],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        using var ms = new System.IO.MemoryStream();
+        var emitResult = modelCompilation.Emit(ms);
+        if (!emitResult.Success)
+            throw new InvalidOperationException(
+                "Model compilation failed:\n" + string.Join("\n", emitResult.Diagnostics));
+
+        ms.Position = 0;
+        var modelRef = MetadataReference.CreateFromStream(ms);
+
+        var dtoCompilation = CSharpCompilation.Create(
+            "DtoAssembly",
+            [CSharpSyntaxTree.ParseText(dtoSource)],
+            [
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
+                MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(FromModelAttribute).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
+                modelRef,
+            ],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        var driver = CSharpGeneratorDriver
+            .Create(new FromModelGenerator())
+            .RunGeneratorsAndUpdateCompilation(dtoCompilation, out var updated, out _);
+
+        var errors = updated.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+
+        if (errors.Count > 0)
+            throw new InvalidOperationException(
+                "Compilation has errors after generation:\n" + string.Join("\n", errors));
+
+        return driver
+            .GetRunResult()
+            .Results
+            .SelectMany(r => r.GeneratedSources)
+            .ToDictionary(s => s.HintName, s => s.SourceText.ToString());
+    }
+
+    /// <summary>
+    /// Like <see cref="RunWithExternalModel"/> but returns only the generator-reported diagnostics
+    /// without throwing on compilation errors, so tests can assert on GENxxx messages.
+    /// </summary>
+    internal static IReadOnlyList<Diagnostic> RunWithExternalModelForDiagnostics(
+        string modelSource, string dtoSource)
+    {
+        var modelCompilation = CSharpCompilation.Create(
+            "ModelAssembly",
+            [CSharpSyntaxTree.ParseText(modelSource)],
+            [
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
+            ],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        using var ms = new System.IO.MemoryStream();
+        modelCompilation.Emit(ms);
+        ms.Position = 0;
+        var modelRef = MetadataReference.CreateFromStream(ms);
+
+        var dtoCompilation = CSharpCompilation.Create(
+            "DtoAssembly",
+            [CSharpSyntaxTree.ParseText(dtoSource)],
+            [
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+                MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location),
+                MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+                MetadataReference.CreateFromFile(typeof(FromModelAttribute).Assembly.Location),
+                MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
+                modelRef,
+            ],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+
+        var driver = CSharpGeneratorDriver
+            .Create(new FromModelGenerator())
+            .RunGeneratorsAndUpdateCompilation(dtoCompilation, out _, out _);
+
+        return driver.GetRunResult().Diagnostics;
+    }
+
     private static CSharpCompilation CreateCompilation(string[] sources, NullableContextOptions nullable)
     {
         var syntaxTrees = sources.Select(s => CSharpSyntaxTree.ParseText(s)).ToArray();

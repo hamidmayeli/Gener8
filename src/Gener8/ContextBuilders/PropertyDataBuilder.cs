@@ -135,6 +135,15 @@ internal sealed class PropertyDataBuilder
         var isInitOnly = property.SetMethod is { IsInitOnly: true }
             || (property.SetMethod is null && isConstructorBacked);
 
+        // When the model comes from a compiled (referenced) assembly, DeclaringSyntaxReferences is
+        // empty and GetInitializer will return null — not because there is no initializer, but
+        // because we cannot see the source. For non-nullable reference types this would produce a
+        // CS8618 on the generated DTO; mark the property so SourceProducer can emit 'required'.
+        var isInitializerUnknown = property.DeclaringSyntaxReferences.Length == 0
+            && property.Type.IsReferenceType
+            && property.NullableAnnotation == Microsoft.CodeAnalysis.NullableAnnotation.NotAnnotated
+            && !property.IsRequired;
+
         return new PropertyData(
             _types.Resolve(property, isParentNullable, isForceNullable),
             name,
@@ -151,7 +160,8 @@ internal sealed class PropertyDataBuilder
             BuildFlattenedData(property, parent),
             isForceNullable,
             // ForceNullable: capture the globally-qualified model type for the partial method stub.
-            isForceNullable ? property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null);
+            isForceNullable ? property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+            isInitializerUnknown);
     }
 
     private static FlattenedPropertyData? BuildFlattenedData(IPropertySymbol property, FlattenParent? parent)

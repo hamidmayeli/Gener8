@@ -56,6 +56,9 @@ internal static class SourceProducer
             bool isRequired()
             {
                 if(prop.IsRequired) return true;
+                // The model lives in a compiled (referenced) assembly; its initializer cannot be
+                // read from syntax. Emit 'required' when nullable is on so the DTO compiles without CS8618.
+                if(nullableEnabled && prop.IsInitializerUnknown && !prop.TypeData.IsNullable) return true;
                 if(target.Model.PrimaryConstructorParams.IsDefault) return false;
                 if(target.Model.PrimaryConstructorParams.Contains(prop.Name)
                     && !prop.TypeData.IsNullable
@@ -63,7 +66,13 @@ internal static class SourceProducer
                 return false;
             }
 
-            var modifier = isRequired() ? "required " : "";
+            var required = isRequired();
+            if (required && prop.IsInitializerUnknown && !prop.TypeData.IsNullable)
+                context.ReportDiagnostic(Diagnostic.Create(
+                    Diagnostics.InitializerUnavailable, Location.None,
+                    prop.Name, target.Model.Name, target.ClassName));
+
+            var modifier = required ? "required " : "";
             // ForceNullable properties must always retain '?' — the user explicitly requested
             // nullability. IsNullableValueType also preserves '?' for Nullable<T> struct wrappers.
             var typeStr = (nullableEnabled || prop.TypeData.IsNullableValueType || prop.IsForceNullable)

@@ -45,7 +45,7 @@ Gener8.slnx
 │   │   ├── FromModelGenerator.cs       — IIncrementalGenerator implementation
 │   │   ├── SyntaxTransformer.cs        — Roslyn pipeline: predicate + ExtractClassTarget
 │   │   ├── SourceProducer.cs           — emits model, extensions, and repository files
-│   │   ├── Diagnostics.cs              — GEN001–GEN006 + GEN999 descriptors
+│   │   ├── Diagnostics.cs              — GEN001–GEN007 + GEN999 descriptors
 │   │   ├── BuildDiagnostic.cs          — immutable diagnostic payload used by builders
 │   │   ├── RepositoryProfile.cs        — per-backend profile differences
 │   │   ├── TypeNames.cs                — display-string helpers + DTO naming convention

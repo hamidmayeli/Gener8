@@ -12,5 +12,6 @@ internal sealed record PropertyData(
     bool IsUserDeclared,            // true when the DTO already declares this property; skip in EmitModel, keep in mappings
     FlattenedPropertyData? Flattened,
     bool IsForceNullable = false,   // true when the property was made nullable via ForceNullable = [...]
-    string? ForceNullableModelType = null  // globally-qualified model type for the Get{Prop} partial method stub
+    string? ForceNullableModelType = null,  // globally-qualified model type for the Get{Prop} partial method stub
+    bool IsInitializerUnknown = false  // true when the model is from a compiled assembly and the initializer cannot be read from syntax
 );
